@@ -21,6 +21,7 @@ export const ENV_MUTE = "OPENCODE_VOICE_MUTE"
 
 const PrioritySchema = z.enum(["urgent", "normal", "chatty"]).optional()
 const ModeSchema = z.enum(["template", "narrate", "verbatim"])
+const VerbositySchema = z.enum(["minimal", "normal", "verbose"])
 
 const EventConfigSchema = z.object({
   enabled: z.boolean().default(false),
@@ -51,6 +52,7 @@ const EventsSchema = z.record(z.string(), EventConfigSchema).default({})
 
 const VoiceConfigSchema = z.object({
   enabled: z.boolean().default(true),
+  verbosity: VerbositySchema.default("normal"),
   startMuted: z.boolean().default(false),
   greeting: z.string().default(DEFAULT_GREETING),
   tts: TTSSchema,
@@ -95,6 +97,29 @@ const DEFAULT_EVENTS: Record<
   "todo.completed.all":      { enabled: true,  mode: "narrate" },
 }
 
+const MINIMAL_EVENTS: Record<
+  string,
+  { enabled: boolean; mode: "template" | "narrate" | "verbatim"; priority?: "urgent" | "normal" | "chatty" }
+> = {
+  ...DEFAULT_EVENTS,
+  "session.compacted":       { ...DEFAULT_EVENTS["session.compacted"], enabled: false },
+  "session.created":         { ...DEFAULT_EVENTS["session.created"], enabled: false },
+  "permission.replied":      { ...DEFAULT_EVENTS["permission.replied"], enabled: false },
+  "tool.execute.before":     { ...DEFAULT_EVENTS["tool.execute.before"], enabled: false },
+  "tool.execute.after":      { ...DEFAULT_EVENTS["tool.execute.after"], enabled: false },
+  "file.edited":             { ...DEFAULT_EVENTS["file.edited"], enabled: false },
+  "command.executed":        { ...DEFAULT_EVENTS["command.executed"], enabled: false },
+  "message.reasoning.delta": { ...DEFAULT_EVENTS["message.reasoning.delta"], enabled: false },
+  "message.text.delta":      { ...DEFAULT_EVENTS["message.text.delta"], enabled: false },
+  "message.updated":         { ...DEFAULT_EVENTS["message.updated"], enabled: false },
+  "todo.completed.item":     { ...DEFAULT_EVENTS["todo.completed.item"], enabled: false },
+}
+
+function presetEvents(verbosity: "minimal" | "normal" | "verbose") {
+  if (verbosity === "minimal") return MINIMAL_EVENTS
+  return DEFAULT_EVENTS
+}
+
 export const DEFAULT_CONFIG: VoiceConfig = VoiceConfigSchema.parse({ events: DEFAULT_EVENTS })
 
 export type ParseResult =
@@ -112,9 +137,19 @@ export function parseConfig(
     userObj.events && typeof userObj.events === "object"
       ? (userObj.events as Record<string, unknown>)
       : {}
-  const mergedEvents: Record<string, unknown> = { ...DEFAULT_EVENTS }
+  const rawVerbosity = userObj.verbosity
+  const verbosity = rawVerbosity === "minimal" || rawVerbosity === "verbose" || rawVerbosity === "normal"
+    ? rawVerbosity
+    : "normal"
+  const defaultsForVerbosity = presetEvents(verbosity)
+  const mergedEvents: Record<string, unknown> = { ...defaultsForVerbosity }
   for (const [key, val] of Object.entries(userEvents)) {
-    mergedEvents[key] = { ...(DEFAULT_EVENTS[key] ?? {}), ...(val as object) }
+    const defaultEvent = defaultsForVerbosity[key] ?? {}
+    if (val && typeof val === "object" && !Array.isArray(val)) {
+      mergedEvents[key] = { ...defaultEvent, ...(val as Record<string, unknown>) }
+    } else {
+      mergedEvents[key] = val
+    }
   }
 
   const merged = { ...userObj, events: mergedEvents }

@@ -90,6 +90,24 @@ describe("OpencodeSpeaker plugin", () => {
     const hooks = (await OpencodeSpeaker(ctx, undefined)) as any
     expect(typeof hooks.event).toBe("function")
   })
+
+  it("does not log raw command event payloads", async () => {
+    const { ctx } = baseCtx()
+    const hooks = (await OpencodeSpeaker(ctx, { startMuted: true })) as any
+
+    await hooks.event({
+      event: {
+        type: "command.executed",
+        properties: {
+          command: "unknown-command",
+          prompt: "sensitive user prompt",
+        },
+      },
+    })
+
+    const loggedBodies = ctx.client.app.log.mock.calls.map((call: any[]) => call[0].body)
+    expect(JSON.stringify(loggedBodies)).not.toContain("sensitive user prompt")
+  })
 })
 
 describe("OpencodeSpeaker init-failure toasts", () => {

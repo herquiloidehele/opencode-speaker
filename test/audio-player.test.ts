@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest"
+import { readdir } from "node:fs/promises"
+import { tmpdir } from "node:os"
 import { createPlayer } from "../src/audio/player.js"
 
 const fakeRunner = (hasBin: Record<string, boolean>, log: string[][]) => ({
@@ -45,7 +47,7 @@ describe("audio player", () => {
     await expect(p.init()).rejects.toThrow(/no audio player/i)
   })
 
-  it("uses powershell on windows", async () => {
+  it("uses powershell with encoded command on windows", async () => {
     const cmds: string[][] = []
     const p = createPlayer({
       platform: "win32",
@@ -54,5 +56,47 @@ describe("audio player", () => {
     await p.init()
     await p.play(Buffer.from("fake"), "audio/mpeg", new AbortController().signal)
     expect(cmds[0][0]).toBe("powershell")
+    expect(cmds[0]).toContain("-EncodedCommand")
+    expect(cmds[0].join(" ")).not.toContain("audio.mp3")
+  })
+
+  it("removes temporary audio directories after successful playback", async () => {
+    const before = new Set(await readdir(tmpdir()))
+    const cmds: string[][] = []
+    const p = createPlayer({
+      platform: "darwin",
+      runner: fakeRunner({ afplay: true }, cmds),
+    })
+
+    await p.init()
+    await p.play(Buffer.from("fake"), "audio/mpeg", new AbortController().signal)
+
+    const after = await readdir(tmpdir())
+    const leaked = after.filter(
+      (name) => name.startsWith("opencode-speaker-") && !before.has(name),
+    )
+    expect(leaked).toEqual([])
+  })
+
+  it("removes temporary audio directories when playback fails", async () => {
+    const before = new Set(await readdir(tmpdir()))
+    const runner = {
+      has: async (b: string) => b === "afplay",
+      run: async () => {
+        throw new Error("player failed")
+      },
+    }
+    const p = createPlayer({ platform: "darwin", runner })
+
+    await p.init()
+    await expect(
+      p.play(Buffer.from("fake"), "audio/mpeg", new AbortController().signal),
+    ).rejects.toThrow("player failed")
+
+    const after = await readdir(tmpdir())
+    const leaked = after.filter(
+      (name) => name.startsWith("opencode-speaker-") && !before.has(name),
+    )
+    expect(leaked).toEqual([])
   })
 })

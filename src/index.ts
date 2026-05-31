@@ -1,5 +1,4 @@
 import "source-map-support/register"
-import { z } from "zod"
 import { parseConfig, PLUGIN_NAME } from "./config.js"
 import { createLogger } from "./log.js"
 import { SpeechQueue } from "./queue/speech-queue.js"
@@ -17,6 +16,8 @@ import {
 } from "./ai-sdk/models.js"
 import { createDispatcher } from "./dispatcher.js"
 import { createCommands } from "./commands/index.js"
+import { createShortcutHandlers, extractCommandName } from "./commands/shortcuts.js"
+import { createVoiceTool } from "./tools/voice-tool.js"
 import { createNotifier } from "./notify.js"
 import { checkCredentials } from "./ai-sdk/credentials.js"
 
@@ -264,43 +265,7 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
   //
   // The exact wire shape of `tui.command.execute` differs across opencode
   // versions, so we read defensively from common locations.
-  const SHORTCUT_HANDLERS: Record<string, () => string> = {
-    "voice-stop": () => {
-      commands.stop()
-      return "stopped"
-    },
-    "voice-off": () => {
-      commands.mute()
-      return "muted"
-    },
-    "voice-on": () => {
-      commands.unmute()
-      return "unmuted"
-    },
-    "voice-toggle": () => {
-      const nowMuted = commands.toggle()
-      return nowMuted ? "muted" : "unmuted"
-    },
-  }
-
-  function extractCommandName(event: { [k: string]: unknown }): string | null {
-    const props = (event as any).properties && typeof (event as any).properties === "object"
-      ? (event as any).properties
-      : event
-    const candidates = [
-      (props as any).command,
-      (props as any).name,
-      (props as any).id,
-      (event as any).command,
-      (event as any).name,
-    ]
-    for (const c of candidates) {
-      if (typeof c === "string" && c.length > 0) {
-        return c.replace(/^\/+/, "").toLowerCase()
-      }
-    }
-    return null
-  }
+  const shortcutHandlers = createShortcutHandlers(commands)
 
   return {
     event: async ({
@@ -311,16 +276,20 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
       // Intercept TUI command shortcuts BEFORE the dispatcher so they take
       // effect synchronously, without going through the narrator/queue path.
       if (event.type === "tui.command.execute" || event.type === "command.executed") {
-        // Log the raw shape once so we can see what opencode actually sends
-        // (the wire format isn't strongly documented and varies by version).
+        const name = extractCommandName(event)
         await initLog.info("voice: command event received", {
           operation: "intercepting TUI command event",
-          input: { type: event.type, event },
+          input: {
+            type: event.type,
+            command: name,
+            hasProperties: Boolean(
+              event.properties && typeof event.properties === "object",
+            ),
+          },
         })
-        const name = extractCommandName(event)
-        if (name && SHORTCUT_HANDLERS[name]) {
+        if (name && shortcutHandlers[name]) {
           try {
-            const result = SHORTCUT_HANDLERS[name]()
+            const result = shortcutHandlers[name]()
             await initLog.info("voice shortcut handled", {
               operation: "handling TUI command shortcut",
               input: { name, result },
@@ -357,64 +326,7 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
       }
     },
     tool: {
-      voice: {
-        description:
-          `Control the ${PLUGIN_NAME} plugin. Actions: stop (interrupt current speech + drop queue, keep enabled), mute/off (silence + drop queue + disable), unmute/on (re-enable), toggle (flip mute), say (speak arbitrary text), test (canned line for verifying audio), status (report provider, voice, mute state, queue size).`,
-        args: {
-          action: z.enum([
-            "stop",
-            "mute",
-            "off",
-            "unmute",
-            "on",
-            "toggle",
-            "say",
-            "test",
-            "status",
-          ]),
-          text: z.string().optional(),
-        },
-        async execute(args: {
-          action:
-            | "stop"
-            | "mute"
-            | "off"
-            | "unmute"
-            | "on"
-            | "toggle"
-            | "say"
-            | "test"
-            | "status"
-          text?: string
-        }) {
-          if (args.action === "stop") {
-            commands.stop()
-            return "stopped"
-          }
-          if (args.action === "mute" || args.action === "off") {
-            commands.mute()
-            return "muted"
-          }
-          if (args.action === "unmute" || args.action === "on") {
-            commands.unmute()
-            return "unmuted"
-          }
-          if (args.action === "toggle") {
-            const nowMuted = commands.toggle()
-            return nowMuted ? "muted" : "unmuted"
-          }
-          if (args.action === "say") {
-            commands.say(args.text ?? "")
-            return "queued"
-          }
-          if (args.action === "test") {
-            commands.test()
-            return "test queued"
-          }
-          if (args.action === "status") return JSON.stringify(commands.status())
-          return `unknown action: ${args.action}`
-        },
-      },
+      voice: createVoiceTool(commands),
     },
   }
 }

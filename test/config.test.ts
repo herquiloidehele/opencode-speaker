@@ -109,6 +109,62 @@ describe("parseConfig", () => {
       expect(result.config.events["future.event.type"]).toBeDefined()
     }
   })
+
+  it("returns a parse error instead of throwing when an event override is null", () => {
+    expect(() => parseConfig({ events: { "session.idle": null } })).not.toThrow()
+    const result = parseConfig({ events: { "session.idle": null } })
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.errors[0].path).toBe("events.session.idle")
+    }
+  })
+
+  it("returns a parse error instead of throwing when an event override is a primitive", () => {
+    expect(() => parseConfig({ events: { "session.idle": true } })).not.toThrow()
+    const result = parseConfig({ events: { "session.idle": true } })
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.errors[0].path).toBe("events.session.idle")
+    }
+  })
+
+  it("supports minimal verbosity for only important spoken events", () => {
+    const result = parseConfig({ verbosity: "minimal" })
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      const enabled = Object.entries(result.config.events)
+        .filter(([, v]) => v.enabled)
+        .map(([k]) => k)
+        .sort()
+      expect(enabled).toEqual([
+        "permission.asked",
+        "session.error",
+        "session.idle",
+        "todo.completed.all",
+      ])
+    }
+  })
+
+  it("supports verbose verbosity by keeping all default enabled events", () => {
+    const result = parseConfig({ verbosity: "verbose" })
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.config.events["tool.execute.before"].enabled).toBe(true)
+      expect(result.config.events["message.reasoning.delta"].enabled).toBe(true)
+      expect(result.config.events["todo.completed.item"].enabled).toBe(true)
+    }
+  })
+
+  it("lets explicit event overrides win over verbosity presets", () => {
+    const result = parseConfig({
+      verbosity: "minimal",
+      events: { "tool.execute.before": { enabled: true } },
+    })
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.config.events["tool.execute.before"].enabled).toBe(true)
+    }
+  })
 })
 
 describe("DEFAULT_CONFIG", () => {

@@ -55,10 +55,12 @@ By default, the plugin uses:
 - Narrator model: `openai/gpt-4.1-mini`
 
 And out of the box, you'll hear:
-- Session completions (LLM-summarized)
-- Errors and permission requests (urgent priority)
-- "All todos complete"
-- Session compactions
+- Session starts, idle summaries, errors, and compactions
+- Permission requests and replies
+- Tool starts and finishes
+- File edits and executed commands
+- Reasoning deltas while the assistant is thinking
+- Todo item completions and “all todos complete” summaries
 
 ---
 
@@ -141,17 +143,46 @@ The plugin resolves `provider/model` slugs internally — no imports needed.
 
 Each event is independently configurable.
 
+### Verbosity
+
+Use `verbosity` to choose a default event profile, then override individual events as needed.
+
+| Value | Behavior |
+|---|---|
+| `minimal` | Speaks only session idle summaries, session errors, permission requests, and all-todos-complete summaries. |
+| `normal` | Current default event profile. |
+| `verbose` | Same as `normal` today; reserved for future high-detail defaults while preserving a stable option name. |
+
+```json
+{
+  "plugin": [
+    ["opencode-speaker", {
+      "verbosity": "minimal",
+      "events": {
+        "tool.execute.before": { "enabled": true }
+      }
+    }]
+  ]
+}
+```
+
 | Event | Default | Mode |
 |---|---|---|
 | `session.idle` | on | narrate (LLM summary) |
 | `session.error` | on | template, urgent |
 | `session.compacted` | on | template |
+| `session.created` | on | template |
 | `permission.asked` | on | template, urgent |
-| `todo.completed.all` | on | narrate |
-| `todo.completed.item` | off | template |
-| `tool.execute.before` | off | template |
-| `tool.execute.after` | off | template |
+| `permission.replied` | on | template |
+| `tool.execute.before` | on | template, chatty |
+| `tool.execute.after` | on | template, chatty |
+| `file.edited` | on | template, chatty |
+| `command.executed` | on | template |
+| `message.reasoning.delta` | on | verbatim, chatty |
+| `message.text.delta` | off | verbatim, chatty |
 | `message.updated` | off | verbatim |
+| `todo.completed.item` | on | template, chatty |
+| `todo.completed.all` | on | narrate |
 
 Override per event:
 
@@ -172,7 +203,7 @@ The narrator is rate-limited by `minIntervalMs` and falls back to a template if 
 
 ### Greeting
 
-A short startup line, spoken once when the plugin is ready. Default: `"opencode speaker ready"`.
+A short startup line, spoken once when the plugin is ready. Default: `"Welcome to OpenCode Speaker!"`.
 
 ```json
 { "greeting": "welcome back" }
