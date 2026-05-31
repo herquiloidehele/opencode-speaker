@@ -11,7 +11,7 @@ export const DEFAULT_TTS_MODEL = "openai/gpt-4o-mini-tts"
 export const DEFAULT_NARRATOR_MODEL = "openai/gpt-4.1-mini"
 
 /** Default startup greeting (spoken once when the plugin is ready). */
-export const DEFAULT_GREETING = "opencode speaker ready"
+export const DEFAULT_GREETING = "Welcome to OpenCode Speaker!"
 
 /** Environment variable name: when "1", disables the plugin entirely. */
 export const ENV_DISABLED = "OPENCODE_VOICE_DISABLED"
