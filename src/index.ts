@@ -17,6 +17,8 @@ import {
 } from "./ai-sdk/models.js"
 import { createDispatcher } from "./dispatcher.js"
 import { createCommands } from "./commands/index.js"
+import { createNotifier } from "./notify.js"
+import { checkCredentials } from "./ai-sdk/credentials.js"
 
 // IMPORTANT: do not re-export anything that opencode's plugin loader might
 // mistake for a server plugin. The loader uses the v1 default-export contract
@@ -37,6 +39,16 @@ type PluginCtx = {
 
 type PluginOptions = Record<string, unknown> | undefined
 
+function formatSchemaErrors(errors: { path: string; message: string }[]): string {
+  const parts = errors.map((e) => (e.path ? `${e.path}: ${e.message}` : e.message))
+  return `invalid config — ${parts.join("; ")}`
+}
+
+function oneLine(err: unknown): string {
+  const s = err instanceof Error ? err.message : String(err)
+  return s.replace(/\s+/g, " ").trim()
+}
+
 export const OpencodeSpeaker = async (ctx: PluginCtx, options?: PluginOptions) => {
   try {
     return await initPlugin(ctx, options)
@@ -44,12 +56,13 @@ export const OpencodeSpeaker = async (ctx: PluginCtx, options?: PluginOptions) =
     // Last-line-of-defense: never let plugin failure crash opencode startup.
     try {
       const logger = createLogger(ctx.client as any, PLUGIN_NAME).child({ module: "init" })
-      await logger.error(`${PLUGIN_NAME} failed to initialize; plugin disabled`, {
+      const notifier = createNotifier(ctx.client as any, logger)
+      notifier.fatal("failed to initialize; plugin disabled", {
         error: err,
         operation: "initializing plugin",
       })
     } catch {
-      /* logger itself failed; nothing we can safely do */
+      /* logger/notifier itself failed; nothing we can safely do */
     }
     return {}
   }
@@ -63,6 +76,7 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
   const narratorLog = logger.child({ module: "narrator" })
   const audioLog    = logger.child({ module: "audio" })
   const ttsLog      = logger.child({ module: "tts" })
+  const notifier = createNotifier(ctx.client as any, initLog)
   // opencode passes per-plugin config as the second argument when the user
   // declares the plugin in tuple form: ["opencode-speaker", { ...options }].
   // We accept any user object and let parseConfig validate + apply defaults.
@@ -70,7 +84,7 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
   const parsed = parseConfig(rawConfig)
 
   if (!parsed.ok) {
-    await initLog.error("Invalid voice config; plugin disabled", {
+    notifier.fatal(formatSchemaErrors(parsed.errors), {
       operation: "parsing plugin config",
       input: { errors: parsed.errors },
     })
@@ -93,18 +107,33 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
     resolvedSpeech = resolveSpeechModel(config.tts.model)
   } catch (err) {
     if (err instanceof ConfigError) {
-      await initLog.error("Invalid model slug; plugin disabled", {
+      notifier.fatal(`invalid model slug — ${err.message}`, {
         error: err,
         operation: "resolving model slugs",
         input: { narrator: config.narrator.model, tts: config.tts.model },
       })
     } else {
-      await initLog.error("Failed to resolve models; plugin disabled", {
+      notifier.fatal(`failed to resolve models — ${oneLine(err)}`, {
         error: err,
         operation: "resolving model slugs",
         input: { narrator: config.narrator.model, tts: config.tts.model },
       })
     }
+    return {}
+  }
+
+  const credCheck = checkCredentials(
+    { narratorSlug: config.narrator.model, ttsSlug: config.tts.model },
+    process.env,
+  )
+  if (!credCheck.ok) {
+    notifier.fatal(
+      `${credCheck.missing.join(", ")} not set; plugin disabled`,
+      {
+        operation: "checking provider credentials",
+        input: { missing: credCheck.missing },
+      },
+    )
     return {}
   }
 
@@ -117,7 +146,7 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
       voice: config.tts.voice,
     })
   } catch (err) {
-    await ttsLog.error("Failed to initialize TTS provider; plugin disabled", {
+    notifier.fatal(`TTS init failed — ${oneLine(err)}`, {
       error: err,
       operation: "initializing TTS provider",
       input: { provider: resolvedSpeech.provider, voice: config.tts.voice },
@@ -128,10 +157,13 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
 
   const provider = getProvider(resolvedSpeech.provider)
   if (!provider) {
-    await ttsLog.error("TTS provider not found after registration; plugin disabled", {
-      operation: "looking up TTS provider after init",
-      input: { provider: resolvedSpeech.provider },
-    })
+    notifier.fatal(
+      `provider not found after registration: ${resolvedSpeech.provider}`,
+      {
+        operation: "looking up TTS provider after init",
+        input: { provider: resolvedSpeech.provider },
+      },
+    )
     return {}
   }
 

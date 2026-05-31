@@ -235,7 +235,7 @@ The built-in slug parser only routes `openai/*` and `elevenlabs/*` to TTS, and `
 
 **Windows blocked by execution policy:** run PowerShell once with `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
 
-**Plugin self-disables silently:** check opencode's log file — `opencode-speaker` errors are logged at `error` / `warn` level.
+**Plugin disabled with a toast on startup:** the toast carries a short summary (invalid config, missing API key, TTS init failure). The full structured detail is in opencode's log file — `opencode-speaker` errors are logged at `error` / `warn` level.
 
 **`Unrecognized key: voice` schema error:** you put options at the top level. Use the tuple form: `"plugin": [["opencode-speaker", { ... }]]`, not `"voice": { ... }`.
 
