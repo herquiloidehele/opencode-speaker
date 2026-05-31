@@ -1,10 +1,16 @@
 # opencode-speaker
 
-Speaker plugin for [opencode](https://opencode.ai). Speaks agent activity through pluggable text-to-speech backends — wired into OpenAI or ElevenLabs via the Vercel AI SDK.
+A speaker plugin for [opencode](https://opencode.ai) that **speaks agent activity out loud** through pluggable text-to-speech backends.
 
-## Quick Start
+Hear what your agent is doing while you work on something else — session summaries, errors, permission requests, and todo completions, narrated by an LLM and spoken by a TTS model.
 
-1. Add to your `opencode.json`:
+Supports **OpenAI** (default) and **ElevenLabs** for TTS, with **OpenAI** or **Anthropic** for the LLM narrator. Powered by the [Vercel AI SDK](https://sdk.vercel.ai).
+
+---
+
+## Install
+
+### 1. Add the plugin to `opencode.json`
 
 ```json
 {
@@ -13,92 +19,104 @@ Speaker plugin for [opencode](https://opencode.ai). Speaks agent activity throug
 }
 ```
 
-2. Set `OPENAI_API_KEY` in your environment, then start opencode. (Default TTS is `openai/gpt-4o-mini-tts`. To use ElevenLabs instead, see [Providers](#providers).)
+### 2. Set your OpenAI API key
 
-3. By default you'll hear: session completions (LLM-summarized), errors, permission requests, "all todos complete", and session compactions.
-
-## Configuration
-
-opencode passes per-plugin config via the **tuple form** in the `plugin`
-array — *not* as a top-level key. Don't put `"voice": { … }` at the top of
-`opencode.json`; opencode's schema validator will reject it with
-`Unrecognized key: voice`. Instead:
-
-```json
-{
-  "plugin": [
-    ["opencode-speaker", { "tts": { "model": "openai/gpt-4o-mini-tts", "voice": "nova" } }]
-  ]
-}
+```bash
+export OPENAI_API_KEY=sk-...
 ```
 
-All configuration snippets below show the **inner options object** (the
-second element of that tuple). Put them inside `["opencode-speaker", { … }]`.
+That's it. Start opencode and you'll hear a short greeting confirming the plugin is ready.
 
-Full example:
+By default, the plugin uses:
+- TTS model: `openai/gpt-4o-mini-tts`
+- Narrator model: `openai/gpt-4.1-mini`
+
+And out of the box, you'll hear:
+- Session completions (LLM-summarized)
+- Errors and permission requests (urgent priority)
+- "All todos complete"
+- Session compactions
+
+---
+
+## Using ElevenLabs instead
+
+Configure the plugin using the **tuple form** in the `plugin` array (per-plugin config goes as the second tuple element — not as a top-level key):
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
-    [
-      "opencode-speaker",
-      {
-        "tts": { "model": "openai/gpt-4o-mini-tts", "voice": "nova", "rate": 1.0 },
-        "narrator": { "model": "anthropic/claude-haiku-4" },
-        "events": {
-          "tool.execute.before": { "enabled": true }
-        }
+    ["opencode-speaker", {
+      "tts": {
+        "model": "elevenlabs/eleven_turbo_v2_5",
+        "voice": "EXAVITQu4vr4xnSDxMaL"
       }
-    ]
+    }]
   ]
 }
 ```
 
-Both `tts.model` and `narrator.model` are `provider/model` slugs. The plugin
-looks up the right Vercel AI SDK package internally; you don't need to
-import anything.
+Then set your API key:
 
-## Providers
-
-### OpenAI (default)
-
-```json
-{ "tts": { "model": "openai/gpt-4o-mini-tts", "voice": "nova" } }
+```bash
+export ELEVENLABS_API_KEY=...
 ```
 
-Set `OPENAI_API_KEY` in your environment. Available model IDs include
-`tts-1`, `tts-1-hd`, `gpt-4o-mini-tts`. Voices: `alloy`, `ash`, `coral`,
-`echo`, `fable`, `onyx`, `nova`, `sage`, `shimmer`.
+The `voice` field takes an ElevenLabs voice ID.
 
-### ElevenLabs
+> **Note:** The narrator (LLM summarizer) is separate from TTS. You can mix and match — e.g., narrate with Anthropic, speak with ElevenLabs.
 
-```json
-{ "tts": { "model": "elevenlabs/eleven_turbo_v2_5", "voice": "EXAVITQu4vr4xnSDxMaL" } }
-```
+---
 
-Set `ELEVENLABS_API_KEY` in your environment. The `voice` field takes an
-ElevenLabs voice ID.
+## Configuration
 
-## Startup Greeting
+All options go inside the tuple's second element: `["opencode-speaker", { ... }]`.
 
-The plugin speaks a short greeting once after it finishes initializing. Defaults to `"opencode speaker ready"`.
+### Full example
 
 ```json
-{ "greeting": "welcome back" }
+{
+  "plugin": [
+    ["opencode-speaker", {
+      "greeting": "opencode speaker ready",
+      "tts": {
+        "model": "openai/gpt-4o-mini-tts",
+        "voice": "nova",
+        "rate": 1.0
+      },
+      "narrator": {
+        "model": "openai/gpt-4.1-mini",
+        "timeoutMs": 5000,
+        "minIntervalMs": 3000
+      },
+      "events": {
+        "tool.execute.before": { "enabled": true }
+      }
+    }]
+  ]
+}
 ```
 
-Set to an empty string to disable:
+### TTS providers
 
-```json
-{ "greeting": "" }
-```
+| Provider | Model slug example | Voices | Env var |
+|---|---|---|---|
+| OpenAI (default) | `openai/gpt-4o-mini-tts`, `openai/tts-1`, `openai/tts-1-hd` | `alloy`, `ash`, `coral`, `echo`, `fable`, `onyx`, `nova`, `sage`, `shimmer` | `OPENAI_API_KEY` |
+| ElevenLabs | `elevenlabs/eleven_turbo_v2_5` | ElevenLabs voice ID | `ELEVENLABS_API_KEY` |
 
-The greeting is automatically skipped when `startMuted` is `true` or `OPENCODE_VOICE_MUTE=1` is set.
+### Narrator (LLM) providers
 
-## Event Configuration
+| Provider | Model slug example | Env var |
+|---|---|---|
+| OpenAI (default) | `openai/gpt-4.1-mini` | `OPENAI_API_KEY` |
+| Anthropic | `anthropic/claude-haiku-4` | `ANTHROPIC_API_KEY` |
 
-Every event is independently configurable. Defaults:
+The plugin resolves `provider/model` slugs internally — no imports needed.
+
+### Events
+
+Each event is independently configurable.
 
 | Event | Default | Mode |
 |---|---|---|
@@ -112,7 +130,7 @@ Every event is independently configurable. Defaults:
 | `tool.execute.after` | off | template |
 | `message.updated` | off | verbatim |
 
-Example — enable per-tool narration:
+Override per event:
 
 ```json
 {
@@ -122,82 +140,77 @@ Example — enable per-tool narration:
 }
 ```
 
-## Narrator Model
+Modes:
+- `template` — fixed phrasing (fast, no LLM)
+- `narrate` — LLM-generated summary (concise but covers what happened, blockers, next steps)
+- `verbatim` — speak the raw text as-is
 
-When `mode: "narrate"` is used, opencode-speaker asks a small LLM (via the
-Vercel AI SDK) to produce a concise spoken explanation of what just
-happened. Configure it:
+The narrator is rate-limited by `minIntervalMs` and falls back to a template if the call fails or is throttled.
+
+### Greeting
+
+A short startup line, spoken once when the plugin is ready. Default: `"opencode speaker ready"`.
 
 ```json
-{
-  "narrator": {
-    "model": "anthropic/claude-haiku-4",
-    "timeoutMs": 5000,
-    "minIntervalMs": 3000
-  }
-}
+{ "greeting": "welcome back" }
 ```
 
-Supported narrator providers: `openai/*`, `anthropic/*`. API keys come from
-the environment:
+Set to `""` to disable. Skipped automatically when `startMuted: true` or `OPENCODE_VOICE_MUTE=1`.
 
-- `OPENAI_API_KEY` for `openai/*` models
-- `ANTHROPIC_API_KEY` for `anthropic/*` models
+### Environment flags
 
-The narrator is prompted to be concise but cover everything important — attempted actions, tools used, outcomes, blockers, and obvious next steps. No token cap is sent to the model; rate-limiting is controlled by `minIntervalMs`, and the handler falls back to a template if the call fails or is throttled.
+- `OPENCODE_VOICE_MUTE=1` — start muted
+- `OPENCODE_VOICE_DISABLED=1` — load the plugin but do nothing
+
+---
 
 ## Controls
 
-### Slash-command shortcuts
+### Slash commands
 
-The plugin intercepts these TUI commands directly (no LLM round-trip — they
-take effect immediately, even mid-sentence):
+These intercept the TUI directly — no LLM round-trip, so they take effect immediately, even mid-sentence:
 
 | Command | Effect |
 |---|---|
-| `/voice-stop` | Interrupt the current utterance and drop the queue. Plugin stays enabled. |
-| `/voice-off` | Same as mute: interrupt + drop queue + disable future speech. |
+| `/voice-stop` | Interrupt + drop queue. Plugin stays enabled. |
+| `/voice-off` | Mute: interrupt + drop queue + silence future events. |
 | `/voice-on` | Re-enable speech. |
 | `/voice-toggle` | Flip between on and off. |
 
-Wire them up as opencode custom commands in `opencode.json` (the templates
-just call the `voice` tool, but the plugin short-circuits the slash command
-before that happens so behavior is instant):
+Register them in `opencode.json`:
 
 ```jsonc
 {
   "command": {
-    "voice-stop":   { "description": "Stop speaking now",    "template": "Call the voice tool with action stop." },
-    "voice-off":    { "description": "Mute the voice",       "template": "Call the voice tool with action mute." },
-    "voice-on":     { "description": "Unmute the voice",     "template": "Call the voice tool with action unmute." },
-    "voice-toggle": { "description": "Toggle voice on/off",  "template": "Call the voice tool with action toggle." }
+    "voice-stop":   { "description": "Stop speaking now",   "template": "Call the voice tool with action stop." },
+    "voice-off":    { "description": "Mute the voice",      "template": "Call the voice tool with action mute." },
+    "voice-on":     { "description": "Unmute the voice",    "template": "Call the voice tool with action unmute." },
+    "voice-toggle": { "description": "Toggle voice on/off", "template": "Call the voice tool with action toggle." }
   }
 }
 ```
 
-You can also bind these to keys via [keybinds](https://opencode.ai/docs/keybinds/) — e.g. `Esc` → `/voice-stop` for a panic button.
+Bind them to keys via [opencode keybinds](https://opencode.ai/docs/keybinds/) — e.g. `Esc` → `/voice-stop` for a panic button.
 
-### `voice` custom tool
+### `voice` tool
 
-Via the `voice` custom tool (the agent can invoke this; you can also call it):
+The agent (or you) can call the `voice` custom tool:
 
-- `{ "action": "stop" }` — interrupt the current utterance and drop the queue, but keep the plugin enabled for future events.
-- `{ "action": "mute" }` (alias `off`) — drop the queue, stop the current utterance, and silence future events.
-- `{ "action": "unmute" }` (alias `on`) — re-enable.
-- `{ "action": "toggle" }` — flip mute state; returns `muted` or `unmuted`.
-- `{ "action": "say", "text": "hello" }` — speak arbitrary text.
-- `{ "action": "test" }` — speak a canned line. Useful for verifying setup.
-- `{ "action": "status" }` — JSON status (provider, voice, mute, queue size).
+| Action | Effect |
+|---|---|
+| `{ "action": "stop" }` | Interrupt and drop queue, keep enabled. |
+| `{ "action": "mute" }` (alias `off`) | Drop queue and silence future events. |
+| `{ "action": "unmute" }` (alias `on`) | Re-enable. |
+| `{ "action": "toggle" }` | Flip mute; returns `muted` or `unmuted`. |
+| `{ "action": "say", "text": "hello" }` | Speak arbitrary text. |
+| `{ "action": "test" }` | Speak a canned line — useful for verifying setup. |
+| `{ "action": "status" }` | JSON status (provider, voice, mute state, queue size). |
 
-Environment flags:
+---
 
-- `OPENCODE_VOICE_MUTE=1` — start muted.
-- `OPENCODE_VOICE_DISABLED=1` — load the plugin but do nothing.
+## Custom providers
 
-## Custom Providers
-
-Register custom providers from `opencode-speaker/api` (not the main module — the
-main module is reserved for the plugin loader's contract):
+Register your own TTS provider from `opencode-speaker/api`:
 
 ```ts
 import { registerProvider } from "opencode-speaker/api"
@@ -205,58 +218,57 @@ import { registerProvider } from "opencode-speaker/api"
 registerProvider({
   name: "my-tts",
   capabilities: { streaming: false, offline: true },
-  async init() { /* … */ },
+  async init() { /* ... */ },
   async synthesize(text, opts, signal) {
-    return { audio: Buffer.from(/* … */), contentType: "audio/wav" }
+    return { audio: Buffer.from(/* ... */), contentType: "audio/wav" }
   },
 })
 ```
 
-Custom providers are selected with a `custom/<name>`-style slug — but note
-that the built-in slug parser only knows about `openai/*` and `elevenlabs/*`
-for TTS, and `openai/*`, `anthropic/*` for the narrator. To route to a
-custom provider today, either fork the slug resolver in
-`src/ai-sdk/models.ts` or open an issue.
-
-## Local Development & Validation
-
-Six runnable demo scripts let you exercise each feature without booting opencode. All use `tsx` (no separate build step needed) and call into the source directly.
-
-| Script | What it validates |
-|---|---|
-| `npm run demo:say -- "text"` | Synthesis + playback. Requires `OPENAI_API_KEY` (default model is `openai/gpt-4o-mini-tts`). Override with `--model=elevenlabs/eleven_turbo_v2_5 --voice=<id>` to test ElevenLabs. |
-| `npm run demo:queue` | The speech queue's priority interrupt + dedup behavior. You should hear interruption mid-sentence and three deduped requests collapse to one. |
-| `npm run demo:event -- <event.type>` | The full event-to-audio pipeline. Examples: `session.idle`, `session.error --message="boom"`, `permission.asked --tool=write`, `todo.completed.all`. Enable normally-off events with `--enable=tool.execute.before`. |
-| `npm run demo:narrator -- --assistant-text="..." --tool=bash` | The LLM narrator handler. Needs `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` depending on `--model=...`. Prints + speaks the generated summary. Use `--no-speak` to print only. |
-| `npm run demo:config -- '{...json...}'` or `--file=path.json` or `--defaults` | Validates a config block against the Zod schema and prints the resolved (defaults-applied) result. |
-| `npm run demo:greet -- --model=openai/gpt-4o-mini-tts` | Boots the full plugin and exercises the startup greeting. |
-
-Plus the standard verification commands:
-
-```bash
-npm test               # full unit + integration suite
-npm test -- speech-queue.test.ts   # one specific suite
-npm run typecheck      # TypeScript validation
-npm run build          # produce dist/
-```
-
-### Recommended local validation flow
-
-When you change something, run in this order:
-
-1. **`npm test`** — catches regressions in the affected module.
-2. **`npm run demo:<feature>`** — audibly confirms the feature still does what you expect.
-3. **Restart opencode against your local plugin** (`rm -rf ~/.cache/opencode/node_modules/opencode-speaker && npm run build && restart opencode`).
+The built-in slug parser only routes `openai/*` and `elevenlabs/*` to TTS, and `openai/*`/`anthropic/*` to the narrator. To use a custom provider today, fork the slug resolver in `src/ai-sdk/models.ts` or open an issue.
 
 ---
 
 ## Troubleshooting
 
-**No audio on Linux:** install `speech-dispatcher` (`sudo apt install speech-dispatcher`) or `espeak`. For cloud-provider audio playback, install `pulseaudio-utils` (provides `paplay`) or `alsa-utils` (`aplay`) or `ffmpeg` (`ffplay`).
+**No audio on Linux:** install `speech-dispatcher` (`sudo apt install speech-dispatcher`) or `espeak`. For cloud-provider audio playback, install `pulseaudio-utils` (`paplay`), `alsa-utils` (`aplay`), or `ffmpeg` (`ffplay`).
 
 **Windows blocked by execution policy:** run PowerShell once with `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
 
-**Plugin self-disables silently:** check opencode's log file — `opencode-speaker` errors are logged at `error` / `warn` level via opencode's logging.
+**Plugin self-disables silently:** check opencode's log file — `opencode-speaker` errors are logged at `error` / `warn` level.
+
+**`Unrecognized key: voice` schema error:** you put options at the top level. Use the tuple form: `"plugin": [["opencode-speaker", { ... }]]`, not `"voice": { ... }`.
+
+---
+
+## Development
+
+Six runnable demo scripts exercise each feature without booting opencode (all use `tsx`):
+
+| Script | Validates |
+|---|---|
+| `npm run demo:say -- "text"` | Synthesis + playback. Override TTS with `--model=elevenlabs/eleven_turbo_v2_5 --voice=<id>`. |
+| `npm run demo:queue` | Speech queue priority + dedup behavior. |
+| `npm run demo:event -- <event.type>` | Full event-to-audio pipeline. E.g. `session.idle`, `permission.asked --tool=write`. |
+| `npm run demo:narrator -- --assistant-text="..." --tool=bash` | LLM narrator handler. |
+| `npm run demo:config -- '{...}'` or `--file=path.json` | Validate a config block against the Zod schema. |
+| `npm run demo:greet` | Startup greeting via the full plugin. |
+
+Standard commands:
+
+```bash
+npm test          # full unit + integration suite
+npm run typecheck # TypeScript validation
+npm run build     # produce dist/
+```
+
+To restart opencode against a local build:
+
+```bash
+rm -rf ~/.cache/opencode/node_modules/opencode-speaker && npm run build
+```
+
+---
 
 ## License
 
