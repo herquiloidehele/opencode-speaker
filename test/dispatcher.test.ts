@@ -210,3 +210,47 @@ describe("dispatcher", () => {
     expect(types).not.toContain("message.reasoning.delta")
   })
 })
+
+import type { Logger } from "../src/log.js"
+
+function fakeLogger(): { logger: Logger; warns: Array<{ message: string; ctx: any }> } {
+  const warns: Array<{ message: string; ctx: any }> = []
+  const noop = async () => {}
+  const logger: Logger = {
+    debug: noop,
+    info: noop,
+    warn: async (m, c) => { warns.push({ message: m, ctx: c }) },
+    error: noop,
+    child: () => logger,
+  }
+  return { logger, warns }
+}
+
+describe("dispatcher logger injection", () => {
+  it("logs handler errors with eventType context BEFORE invoking onError", async () => {
+    const { logger, warns } = fakeLogger()
+    const handle = vi.fn().mockRejectedValue(new Error("handler boom"))
+    const push = vi.fn()
+    const onError = vi.fn()
+    const d = createDispatcher({
+      handler: { handle },
+      queue: { push },
+      logger,
+      onError,
+    } as any)
+    await d.onEvent({ type: "session.idle" })
+    expect(warns).toHaveLength(1)
+    expect(warns[0].message).toBe("handler failed")
+    expect(warns[0].ctx.error).toBeInstanceOf(Error)
+    expect(warns[0].ctx.operation).toBe("dispatching opencode event")
+    expect(warns[0].ctx.input).toEqual({ eventType: "session.idle" })
+    expect(onError).toHaveBeenCalled()
+  })
+
+  it("does not throw when logger is omitted (backwards compatible)", async () => {
+    const handle = vi.fn().mockRejectedValue(new Error("x"))
+    const push = vi.fn()
+    const d = createDispatcher({ handler: { handle }, queue: { push } } as any)
+    await expect(d.onEvent({ type: "session.idle" })).resolves.toBeUndefined()
+  })
+})

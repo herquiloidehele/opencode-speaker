@@ -113,3 +113,50 @@ describe("narrator", () => {
     expect(second).toBe("second")
   })
 })
+
+import type { Logger } from "../src/log.js"
+
+function fakeLogger() {
+  const warns: Array<{ message: string; ctx: any }> = []
+  const noop = async () => {}
+  const logger: Logger = {
+    debug: noop, info: noop, error: noop,
+    warn: async (m, c) => { warns.push({ message: m, ctx: c }) },
+    child: () => logger,
+  }
+  return { logger, warns }
+}
+
+describe("narrator logger injection", () => {
+  it("logs and returns null when the language model throws", async () => {
+    const { logger, warns } = fakeLogger()
+    const doGenerate = vi.fn(async () => {
+      throw new Error("LM down")
+    })
+    const model = new MockLanguageModelV2({ doGenerate })
+    const narrator = createNarrator(model, baseConfig, logger)
+    const result = await narrator.summarize(
+      { type: "todo.completed.all" },
+      { assistantText: "wrote some code", recentTools: ["write"] },
+    )
+    expect(result).toBeNull()
+    expect(warns).toHaveLength(1)
+    expect(warns[0].message).toBe("narrator summary failed")
+    expect(warns[0].ctx.error).toBeInstanceOf(Error)
+    expect(warns[0].ctx.operation).toBe("summarizing event for narration")
+    expect(warns[0].ctx.input.eventType).toBe("todo.completed.all")
+  })
+
+  it("works without a logger (backwards compatible)", async () => {
+    const doGenerate = vi.fn(async () => {
+      throw new Error("x")
+    })
+    const model = new MockLanguageModelV2({ doGenerate })
+    const narrator = createNarrator(model, baseConfig)
+    const result = await narrator.summarize(
+      { type: "session.idle" },
+      { assistantText: "", recentTools: [] },
+    )
+    expect(result).toBeNull()
+  })
+})

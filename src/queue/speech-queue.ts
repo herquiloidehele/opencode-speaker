@@ -1,4 +1,5 @@
 import { Priority, type SpeechRequest } from "./types.js"
+import type { Logger } from "../log.js"
 
 export type SpeakFn = (req: SpeechRequest, signal: AbortSignal) => Promise<void>
 
@@ -7,6 +8,7 @@ export interface SpeechQueueOptions {
   staleMs: number
   now: () => number
   onError?: (err: unknown, req: SpeechRequest) => void
+  logger?: Logger
 }
 
 export class SpeechQueue {
@@ -99,6 +101,17 @@ export class SpeechQueue {
         try {
           await this.opts.speak(next, abort.signal)
         } catch (err) {
+          if (this.opts.logger) {
+            await this.opts.logger.warn("speak failed", {
+              error: err,
+              operation: "synthesizing queued speech",
+              input: {
+                textPreview: next.text.slice(0, 80),
+                priority: next.priority,
+                enqueuedAt: next.enqueuedAt,
+              },
+            })
+          }
           this.opts.onError?.(err, next)
         } finally {
           this.current = null

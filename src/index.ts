@@ -1,3 +1,4 @@
+import "source-map-support/register"
 import { z } from "zod"
 import { parseConfig, PLUGIN_NAME } from "./config.js"
 import { createLogger } from "./log.js"
@@ -42,9 +43,10 @@ export const OpencodeSpeaker = async (ctx: PluginCtx, options?: PluginOptions) =
   } catch (err) {
     // Last-line-of-defense: never let plugin failure crash opencode startup.
     try {
-      const logger = createLogger(ctx.client as any, PLUGIN_NAME)
+      const logger = createLogger(ctx.client as any, PLUGIN_NAME).child({ module: "init" })
       await logger.error(`${PLUGIN_NAME} failed to initialize; plugin disabled`, {
-        error: String(err),
+        error: err,
+        operation: "initializing plugin",
       })
     } catch {
       /* logger itself failed; nothing we can safely do */
@@ -55,6 +57,12 @@ export const OpencodeSpeaker = async (ctx: PluginCtx, options?: PluginOptions) =
 
 async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
   const logger = createLogger(ctx.client as any, PLUGIN_NAME)
+  const initLog     = logger.child({ module: "init" })
+  const dispatchLog = logger.child({ module: "dispatcher" })
+  const queueLog    = logger.child({ module: "queue" })
+  const narratorLog = logger.child({ module: "narrator" })
+  const audioLog    = logger.child({ module: "audio" })
+  const ttsLog      = logger.child({ module: "tts" })
   // opencode passes per-plugin config as the second argument when the user
   // declares the plugin in tuple form: ["opencode-speaker", { ...options }].
   // We accept any user object and let parseConfig validate + apply defaults.
@@ -62,13 +70,18 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
   const parsed = parseConfig(rawConfig)
 
   if (!parsed.ok) {
-    await logger.error("Invalid voice config; plugin disabled", { errors: parsed.errors })
+    await initLog.error("Invalid voice config; plugin disabled", {
+      operation: "parsing plugin config",
+      input: { errors: parsed.errors },
+    })
     return {}
   }
   const config = parsed.config
 
   if (!config.enabled) {
-    await logger.info(`${PLUGIN_NAME} disabled by config or env`)
+    await initLog.info(`${PLUGIN_NAME} disabled by config or env`, {
+      operation: "starting plugin",
+    })
     return {}
   }
 
@@ -80,10 +93,16 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
     resolvedSpeech = resolveSpeechModel(config.tts.model)
   } catch (err) {
     if (err instanceof ConfigError) {
-      await logger.error(`Invalid model slug; plugin disabled: ${err.message}`)
+      await initLog.error("Invalid model slug; plugin disabled", {
+        error: err,
+        operation: "resolving model slugs",
+        input: { narrator: config.narrator.model, tts: config.tts.model },
+      })
     } else {
-      await logger.error("Failed to resolve models; plugin disabled", {
-        error: String(err),
+      await initLog.error("Failed to resolve models; plugin disabled", {
+        error: err,
+        operation: "resolving model slugs",
+        input: { narrator: config.narrator.model, tts: config.tts.model },
       })
     }
     return {}
@@ -98,8 +117,10 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
       voice: config.tts.voice,
     })
   } catch (err) {
-    await logger.error("Failed to initialize TTS provider; plugin disabled", {
-      error: String(err),
+    await ttsLog.error("Failed to initialize TTS provider; plugin disabled", {
+      error: err,
+      operation: "initializing TTS provider",
+      input: { provider: resolvedSpeech.provider, voice: config.tts.voice },
     })
     return {}
   }
@@ -107,9 +128,10 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
 
   const provider = getProvider(resolvedSpeech.provider)
   if (!provider) {
-    await logger.error(
-      `TTS provider not found after registration: ${resolvedSpeech.provider}`,
-    )
+    await ttsLog.error("TTS provider not found after registration; plugin disabled", {
+      operation: "looking up TTS provider after init",
+      input: { provider: resolvedSpeech.provider },
+    })
     return {}
   }
 
@@ -121,9 +143,13 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
     player = createPlayer({ runner })
     await player.init()
   } catch (err) {
-    await logger.warn(
+    await audioLog.warn(
       "Audio player unavailable; cloud providers may not produce output",
-      { error: String(err) },
+      {
+        error: err,
+        operation: "initializing audio player",
+        input: { platform: process.platform },
+      },
     )
     player = null
   }
@@ -140,7 +166,9 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
       signal,
     )
     if (!player) {
-      await logger.warn("Audio produced but no player available; dropping audio")
+      await audioLog.warn("Audio produced but no player available; dropping audio", {
+        operation: "playing synthesized audio",
+      })
       return
     }
     await player.play(result.audio, result.contentType, signal)
@@ -151,15 +179,21 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
     speak,
     staleMs: config.queue.staleMs,
     now: () => Date.now(),
+    logger: queueLog,
     onError: (err, req) => {
-      void logger.warn(`speak failed for "${req.text}"`, { error: String(err) })
+      void queueLog.warn("speak failed at boundary", {
+        error: err,
+        operation: "speech-queue onError boundary",
+        input: { textPreview: req.text.slice(0, 80), priority: req.priority },
+      })
     },
   })
 
   // 6. Narrator + handler registry.
-  const narrator = createNarrator(languageModel, config.narrator)
+  const narrator = createNarrator(languageModel, config.narrator, narratorLog)
 
   const dispatcher = createDispatcher({
+    logger: dispatchLog,
     handler: createHandlerRegistry({
       events: config.events as any,
       narrator,
@@ -167,7 +201,11 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
     }),
     queue,
     onError: (err, e) => {
-      void logger.warn(`handler error for ${e.type}`, { error: String(err) })
+      void dispatchLog.warn("handler error at boundary", {
+        error: err,
+        operation: "dispatcher onError boundary",
+        input: { eventType: e.type },
+      })
     },
   })
 
@@ -179,7 +217,10 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
   })
   if (config.startMuted) commands.mute()
 
-  await logger.info(`${PLUGIN_NAME} ready (provider=${resolvedSpeech.provider})`)
+  await initLog.info(`${PLUGIN_NAME} ready`, {
+    operation: "plugin ready",
+    input: { provider: resolvedSpeech.provider, voice: config.tts.voice },
+  })
 
   if (config.greeting.trim().length > 0 && !config.startMuted) {
     commands.say(config.greeting)
@@ -240,24 +281,32 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
       if (event.type === "tui.command.execute" || event.type === "command.executed") {
         // Log the raw shape once so we can see what opencode actually sends
         // (the wire format isn't strongly documented and varies by version).
-        await logger.info(`voice: command event received`, {
-          type: event.type,
-          event,
+        await initLog.info("voice: command event received", {
+          operation: "intercepting TUI command event",
+          input: { type: event.type, event },
         })
         const name = extractCommandName(event)
         if (name && SHORTCUT_HANDLERS[name]) {
           try {
             const result = SHORTCUT_HANDLERS[name]()
-            await logger.info(`voice shortcut /${name} -> ${result}`)
+            await initLog.info("voice shortcut handled", {
+              operation: "handling TUI command shortcut",
+              input: { name, result },
+            })
           } catch (err) {
-            await logger.warn(`voice shortcut /${name} failed`, {
-              error: String(err),
+            await initLog.warn("voice shortcut failed", {
+              error: err,
+              operation: "handling TUI command shortcut",
+              input: { name },
             })
           }
           return
         }
         if (name) {
-          await logger.info(`voice: command /${name} did not match any shortcut`)
+          await initLog.info("voice: command did not match any shortcut", {
+            operation: "intercepting TUI command event",
+            input: { name },
+          })
         }
       }
 
@@ -268,8 +317,10 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
       try {
         await dispatcher.onEvent(event)
       } catch (err) {
-        await logger.warn(`event handler crashed for ${event.type}`, {
-          error: String(err),
+        await dispatchLog.warn("event handler crashed", {
+          error: err,
+          operation: "dispatching opencode event",
+          input: { eventType: event.type },
         })
       }
     },

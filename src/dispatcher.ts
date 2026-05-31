@@ -1,6 +1,7 @@
 import type { SpeechRequest } from "./queue/types.js"
 import type { HandlerRegistry } from "./handlers/index.js"
 import type { NarrationContext } from "./handlers/narrator.js"
+import type { Logger } from "./log.js"
 
 interface QueueIfc {
   push(req: SpeechRequest): void
@@ -9,6 +10,7 @@ interface QueueIfc {
 export interface DispatcherOptions {
   handler: HandlerRegistry
   queue: QueueIfc
+  logger?: Logger
   onError?: (err: unknown, event: { type: string }) => void
   /** Max chars of recent assistant text to keep. */
   textWindow?: number
@@ -78,6 +80,13 @@ export function createDispatcher(opts: DispatcherOptions): Dispatcher {
       const sr = await opts.handler.handle(event)
       if (sr) opts.queue.push(sr)
     } catch (err) {
+      if (opts.logger) {
+        await opts.logger.warn("handler failed", {
+          error: err,
+          operation: "dispatching opencode event",
+          input: { eventType: event.type },
+        })
+      }
       opts.onError?.(err, event)
     }
   }

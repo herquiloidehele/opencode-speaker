@@ -1,5 +1,6 @@
 import { generateText, type LanguageModel } from "ai"
 import { truncate } from "./template.js"
+import type { Logger } from "../log.js"
 
 export interface NarrationContext {
   assistantText: string
@@ -53,6 +54,7 @@ function buildPrompt(
 export function createNarrator(
   model: LanguageModel,
   config: NarratorConfig,
+  logger?: Logger,
 ): Narrator {
   let lastFinishedAt = 0
 
@@ -74,7 +76,18 @@ export function createNarrator(
         if (trimmed.length === 0) return null
         lastFinishedAt = Date.now()
         return trimmed
-      } catch {
+      } catch (err) {
+        if (logger) {
+          await logger.warn("narrator summary failed", {
+            error: err,
+            operation: "summarizing event for narration",
+            input: {
+              eventType: event.type,
+              assistantTextLen: ctx.assistantText.length,
+              recentToolsCount: ctx.recentTools.length,
+            },
+          })
+        }
         return null
       } finally {
         clearTimeout(timer)

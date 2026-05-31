@@ -154,3 +154,45 @@ describe("SpeechQueue", () => {
     await expect(q.idle()).resolves.toBeUndefined()
   })
 })
+
+import type { Logger } from "../src/log.js"
+
+function fakeLogger() {
+  const warns: Array<{ message: string; ctx: any }> = []
+  const noop = async () => {}
+  const logger: Logger = {
+    debug: noop, info: noop, error: noop,
+    warn: async (m, c) => { warns.push({ message: m, ctx: c }) },
+    child: () => logger,
+  }
+  return { logger, warns }
+}
+
+describe("speech-queue logger injection", () => {
+  it("logs speak failures with text preview + voice + priority context", async () => {
+    const { logger, warns } = fakeLogger()
+    const speak = vi.fn().mockRejectedValue(new Error("synth boom"))
+    const onError = vi.fn()
+    const q = new SpeechQueue({
+      speak,
+      staleMs: 60_000,
+      now: () => 0,
+      onError,
+      logger,
+    } as any)
+    q.push({
+      id: "1",
+      priority: 2,
+      text: "Hello world this is a test sentence about logging",
+      enqueuedAt: 0,
+    } as any)
+    await q.idle()
+    expect(warns).toHaveLength(1)
+    expect(warns[0].message).toBe("speak failed")
+    expect(warns[0].ctx.error).toBeInstanceOf(Error)
+    expect(warns[0].ctx.operation).toBe("synthesizing queued speech")
+    expect(warns[0].ctx.input.textPreview).toMatch(/^Hello world/)
+    expect(warns[0].ctx.input.priority).toBe(2)
+    expect(onError).toHaveBeenCalled()
+  })
+})
