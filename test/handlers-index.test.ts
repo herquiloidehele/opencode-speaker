@@ -31,7 +31,7 @@ describe("handler registry", () => {
       getContext: () => ({ assistantText: "", recentTools: [] }),
     })
     const sr = await r.handle({ type: "session.error", message: "bad" })
-    expect(sr?.text).toContain("Session error")
+    expect(sr?.text).toContain("I hit a session error")
     expect(sr?.priority).toBe(Priority.URGENT)
     expect(sr?.dedupKey).toBe("session.error")
   })
@@ -56,7 +56,7 @@ describe("handler registry", () => {
       getContext: () => ({ assistantText: "x", recentTools: [] }),
     })
     const sr = await r.handle({ type: "session.idle" })
-    expect(sr?.text).toBe("Session idle. Awaiting your next instruction.")
+    expect(sr?.text).toBe("I'm idle now and waiting for your next instruction.")
   })
 
   it("returns null when template has no entry and narrator returns null", async () => {

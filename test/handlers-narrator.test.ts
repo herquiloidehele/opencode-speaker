@@ -38,6 +38,10 @@ describe("narrator", () => {
     expect(out).toBe("Done refactoring.")
     expect(doGenerate).toHaveBeenCalledOnce()
     expect(capturedPrompt).toContain("did stuff")
+    expect(capturedPrompt).toContain("Speak in first person as the one doing the coding work")
+    expect(capturedPrompt).toContain("Use I, me, and my")
+    expect(capturedPrompt).toContain("Do not describe yourself in third person")
+    expect(capturedPrompt).not.toContain("Do not refer to the agent")
   })
 
   it("returns null when timeout elapses", async () => {

@@ -4,7 +4,7 @@ import { renderTemplate, stripMarkdown, truncate } from "../src/handlers/templat
 describe("renderTemplate", () => {
   it("formats session.error", () => {
     expect(renderTemplate({ type: "session.error", message: "Model overloaded" })).toBe(
-      "Session error: Model overloaded. Check the log for details.",
+      "I hit a session error: Model overloaded. Check the log for details.",
     )
   })
 
@@ -13,70 +13,73 @@ describe("renderTemplate", () => {
     const out = renderTemplate({ type: "session.error", message: longMsg })
     // 200 char cap on message + fixed prefix/suffix (~50 chars).
     expect(out!.length).toBeLessThanOrEqual(260)
-    expect(out).toMatch(/^Session error: x+…\. Check the log for details\.$/)
+    expect(out).toMatch(/^I hit a session error: x+…\. Check the log for details\.$/)
   })
 
   it("formats permission.asked", () => {
     expect(renderTemplate({ type: "permission.asked", tool: "write" })).toBe(
-      "Permission requested for write. Waiting on your approval.",
+      "I need your approval before I use write.",
     )
   })
 
   it("formats permission.replied with normalized decisions", () => {
     expect(
       renderTemplate({ type: "permission.replied", tool: "write", decision: "allow" }),
-    ).toBe("Permission granted for write.")
+    ).toBe("I got approval to use write.")
     expect(
       renderTemplate({ type: "permission.replied", tool: "bash", decision: "deny" }),
-    ).toBe("Permission denied for bash.")
+    ).toBe("I was denied permission to use bash.")
+    expect(renderTemplate({ type: "permission.replied" })).toBe(
+      "I got a response for the operation.",
+    )
   })
 
   it("formats session.compacted", () => {
     expect(renderTemplate({ type: "session.compacted" })).toBe(
-      "Session compacted. Older context has been summarized to free up room.",
+      "I compacted the session, so older context is summarized and I have more room to continue.",
     )
   })
 
   it("formats session.created", () => {
     expect(renderTemplate({ type: "session.created" })).toBe(
-      "New session started, working on it.",
+      "I'm starting a new session and getting ready to work.",
     )
     expect(renderTemplate({ type: "session.created", title: "Refactor auth" })).toBe(
-      "New session started, working on it.",
+      "I'm starting a new session and getting ready to work.",
     )
   })
 
   it("formats tool.execute.before / .after", () => {
-    expect(renderTemplate({ type: "tool.execute.before", tool: "bash" })).toBe("Running bash.")
-    expect(renderTemplate({ type: "tool.execute.after", tool: "bash" })).toBe("bash finished.")
+    expect(renderTemplate({ type: "tool.execute.before", tool: "bash" })).toBe("I'm running bash now.")
+    expect(renderTemplate({ type: "tool.execute.after", tool: "bash" })).toBe("I finished running bash.")
   })
 
   it("formats file.edited using just the basename", () => {
     expect(
       renderTemplate({ type: "file.edited", file: "/repo/src/index.ts" }),
-    ).toBe("Edited index.ts.")
-    expect(renderTemplate({ type: "file.edited" })).toBe("A file was edited.")
+    ).toBe("I edited index.ts.")
+    expect(renderTemplate({ type: "file.edited" })).toBe("I edited a file.")
   })
 
   it("formats command.executed", () => {
     expect(renderTemplate({ type: "command.executed", command: "/init" })).toBe(
-      "Command /init executed.",
+      "I ran /init.",
     )
-    expect(renderTemplate({ type: "command.executed" })).toBe("Command executed.")
+    expect(renderTemplate({ type: "command.executed" })).toBe("I ran a command.")
   })
 
   it("formats todo.completed.item with content", () => {
     expect(
       renderTemplate({ type: "todo.completed.item", content: "Add login route" }),
-    ).toBe("Task complete: Add login route.")
+    ).toBe("I finished this task: Add login route.")
   })
 
   it("formats todo.completed.all with optional count", () => {
     expect(renderTemplate({ type: "todo.completed.all" })).toBe(
-      "All todos complete. Nice work.",
+      "I've completed all todos. Nice work.",
     )
     expect(renderTemplate({ type: "todo.completed.all", count: 3 })).toBe(
-      "All 3 todos complete. Nice work.",
+      "I've completed all 3 todos. Nice work.",
     )
   })
 
@@ -96,7 +99,7 @@ describe("renderTemplate", () => {
 
   it("formats session.idle with a chatty fallback line", () => {
     expect(renderTemplate({ type: "session.idle" })).toBe(
-      "Session idle. Awaiting your next instruction.",
+      "I'm idle now and waiting for your next instruction.",
     )
   })
 

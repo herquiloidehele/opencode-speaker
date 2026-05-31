@@ -34,14 +34,14 @@ function basename(p: string): string {
 
 const templates: Record<string, Renderer> = {
   // --- Real OpenCode events ---
-  "session.idle":         ()  => "Session idle. Awaiting your next instruction.",
+  "session.idle":         ()  => "I'm idle now and waiting for your next instruction.",
   "session.error":        (e) =>
-    `Session error: ${truncate(String(e.message ?? "unknown"), 200)}. Check the log for details.`,
+    `I hit a session error: ${truncate(String(e.message ?? "unknown"), 200)}. Check the log for details.`,
   "session.compacted":    ()  =>
-    "Session compacted. Older context has been summarized to free up room.",
-  "session.created":      () => "New session started, working on it.",
+    "I compacted the session, so older context is summarized and I have more room to continue.",
+  "session.created":      () => "I'm starting a new session and getting ready to work.",
   "permission.asked":     (e) =>
-    `Permission requested for ${e.tool ?? "an operation"}. Waiting on your approval.`,
+    `I need your approval before I use ${e.tool ?? "an operation"}.`,
   "permission.replied":   (e) => {
     const raw = String(
       e.decision ?? e.response ?? e.reply ?? e.result ?? "responded",
@@ -52,17 +52,21 @@ const templates: Record<string, Renderer> = {
         : raw === "deny" || raw === "reject" || raw === "no"
           ? "denied"
           : raw
-    return `Permission ${verb} for ${e.tool ?? "the operation"}.`
+    const tool = e.tool ?? "the operation"
+    if (verb === "granted") return `I got approval to use ${tool}.`
+    if (verb === "denied") return `I was denied permission to use ${tool}.`
+    if (verb === "responded") return `I got a response for ${tool}.`
+    return `I got a permission response for ${tool}: ${verb}.`
   },
-  "tool.execute.before":  (e) => `Running ${e.tool ?? "tool"}.`,
-  "tool.execute.after":   (e) => `${e.tool ?? "tool"} finished.`,
+  "tool.execute.before":  (e) => `I'm running ${e.tool ?? "tool"} now.`,
+  "tool.execute.after":   (e) => `I finished running ${e.tool ?? "tool"}.`,
   "file.edited":          (e) => {
     const raw = String(e.file ?? e.path ?? e.filePath ?? "")
-    return raw ? `Edited ${basename(raw)}.` : "A file was edited."
+    return raw ? `I edited ${basename(raw)}.` : "I edited a file."
   },
   "command.executed":     (e) => {
     const name = String(e.command ?? e.name ?? "").trim()
-    return name ? `Command ${name} executed.` : "Command executed."
+    return name ? `I ran ${name}.` : "I ran a command."
   },
   "message.updated":      (e) => truncate(stripMarkdown(String(e.text ?? "")), 600),
 
@@ -72,11 +76,11 @@ const templates: Record<string, Renderer> = {
   "todo.completed.all":   (e) => {
     const n = Number(e.count ?? 0)
     return n > 0
-      ? `All ${n} todos complete. Nice work.`
-      : "All todos complete. Nice work."
+      ? `I've completed all ${n} todos. Nice work.`
+      : "I've completed all todos. Nice work."
   },
   "todo.completed.item":  (e) =>
-    `Task complete: ${truncate(stripMarkdown(String(e.content ?? "")), 80)}.`,
+    `I finished this task: ${truncate(stripMarkdown(String(e.content ?? "")), 80)}.`,
 }
 
 export function renderTemplate(event: AnyEvent): string | null {
