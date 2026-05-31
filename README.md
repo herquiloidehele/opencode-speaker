@@ -12,6 +12,9 @@ Supports **OpenAI** (default) and **ElevenLabs** for TTS, with **OpenAI** or **A
 
 ### 1. Add the plugin to `opencode.json`
 
+Your global opencode config file is usually located at `~/.config/opencode/opencode.json`.
+If you use a project-local opencode config, add the same plugin entry there instead.
+
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
@@ -21,9 +24,29 @@ Supports **OpenAI** (default) and **ElevenLabs** for TTS, with **OpenAI** or **A
 
 ### 2. Set your OpenAI API key
 
+For the current terminal session:
+
 ```bash
 export OPENAI_API_KEY=sk-...
 ```
+
+To make it available every time you open a terminal, add it to your shell startup file:
+
+```bash
+# zsh, macOS default
+echo 'export OPENAI_API_KEY=sk-...' >> ~/.zshrc
+
+# bash
+echo 'export OPENAI_API_KEY=sk-...' >> ~/.bashrc
+```
+
+If you use fish:
+
+```fish
+set -Ux OPENAI_API_KEY sk-...
+```
+
+Restart your terminal after adding the variable, or run `source ~/.zshrc` / `source ~/.bashrc` for the current session.
 
 That's it. Start opencode and you'll hear a short greeting confirming the plugin is ready.
 
