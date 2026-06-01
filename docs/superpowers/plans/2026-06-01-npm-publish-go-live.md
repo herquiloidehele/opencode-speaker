@@ -797,3 +797,22 @@ These steps require npm credentials, GitHub repo settings, and a live registry, 
 - **Audit is non-gating in CI** (`continue-on-error: true`) to avoid blocking merges on unrelated upstream advisories; it still runs as the local quality gate (Task 2) and in CI for visibility. Flip it to gating by removing that line.
 - **Bootstrap publish is local and provenance-free**; provenance applies to every CI release thereafter. This corrects a detail in the spec (the spec said the bootstrap publish would carry provenance, which npm does not support outside CI).
 - **Repo must be public** for the provenance/OIDC path; the `NPM_TOKEN` fallback is wired (commented) in `release.yml` if that changes.
+
+---
+
+## Implementation notes (as-built, 2026-06-01)
+
+What shipped differs from a few task descriptions above:
+
+- **Task 1 was done test-only.** `src/handlers/narrator.ts` was left unchanged (cap
+  stays at 10000); the test was updated to feed 20,000 chars and assert truncation to
+  ≤10000. The original task proposed lowering the cap to 4000 — not done.
+- **AI SDK upgraded v5 → v6.** To clear advisory
+  [GHSA-866g-f22w-33x8](https://github.com/advisories/GHSA-866g-f22w-33x8) in
+  `@ai-sdk/provider-utils`, dependencies were bumped: `ai` ^6, `@ai-sdk/openai` ^3,
+  `@ai-sdk/anthropic` ^3, `@ai-sdk/elevenlabs` ^2. Only code impact: test mocks renamed
+  `Mock{Language,Speech}ModelV2` → `…V3`. Production audit is now 0 vulnerabilities.
+- **Dev-only advisories deferred.** vitest/vite/esbuild carry dev advisories (including a
+  vitest-UI "critical" that requires `vitest --ui`, which this project never runs). They
+  do not ship (`files` = `dist` + README + LICENSE) and CI's `audit:prod` ignores them.
+  The fix is a breaking vitest 1.x → 4.x bump, tracked as a separate follow-up.
