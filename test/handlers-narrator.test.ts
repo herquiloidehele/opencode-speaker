@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest"
-import { MockLanguageModelV2 } from "ai/test"
+import { MockLanguageModelV3 } from "ai/test"
 import { createNarrator } from "../src/handlers/narrator.js"
 
 const baseConfig = { timeoutMs: 1000, minIntervalMs: 0 }
@@ -22,7 +22,7 @@ function mockModel(text: string, opts: { onCall?: (input: any) => void } = {}) {
     opts.onCall?.(input)
     return mockResult(text)
   })
-  return { model: new MockLanguageModelV2({ doGenerate }), doGenerate }
+  return { model: new MockLanguageModelV3({ doGenerate }), doGenerate }
 }
 
 describe("narrator", () => {
@@ -95,7 +95,7 @@ describe("narrator", () => {
       // If we ever get here the signal wasn't honoured — fail loudly.
       throw new Error("should have aborted")
     })
-    const model = new MockLanguageModelV2({ doGenerate })
+    const model = new MockLanguageModelV3({ doGenerate })
     const n = createNarrator(model, { ...baseConfig, timeoutMs: 20 })
     const out = await n.summarize({ type: "session.idle" }, ctx("x"))
     expect(out).toBeNull()
@@ -105,7 +105,7 @@ describe("narrator", () => {
     const doGenerate = vi.fn(async () => {
       throw new Error("500")
     })
-    const model = new MockLanguageModelV2({ doGenerate })
+    const model = new MockLanguageModelV3({ doGenerate })
     const n = createNarrator(model, baseConfig)
     const out = await n.summarize({ type: "session.idle" }, ctx("x"))
     expect(out).toBeNull()
@@ -136,9 +136,13 @@ describe("narrator", () => {
       },
     })
     const n = createNarrator(model, baseConfig)
-    const long = "x".repeat(10_000)
+    const long = "x".repeat(20_000)
     await n.summarize({ type: "session.idle" }, ctx(long))
-    expect(capturedPrompt.length).toBeLessThan(5000)
+    // The narrator caps assistant text at 10000 chars before it reaches the
+    // model, so a 20k-char input must not be passed verbatim.
+    const xRun = capturedPrompt.match(/x+/)?.[0] ?? ""
+    expect(xRun.length).toBeGreaterThan(0)
+    expect(xRun.length).toBeLessThanOrEqual(10000)
   })
 
   it("does not advance throttle on error", async () => {
@@ -148,7 +152,7 @@ describe("narrator", () => {
       if (calls === 1) throw new Error("transient")
       return mockResult("second")
     })
-    const model = new MockLanguageModelV2({ doGenerate })
+    const model = new MockLanguageModelV3({ doGenerate })
     const n = createNarrator(model, { ...baseConfig, minIntervalMs: 100_000 })
     const first = await n.summarize({ type: "session.idle" }, ctx("x"))
     const second = await n.summarize({ type: "session.idle" }, ctx("x"))
@@ -176,7 +180,7 @@ describe("narrator logger injection", () => {
     const doGenerate = vi.fn(async () => {
       throw new Error("LM down")
     })
-    const model = new MockLanguageModelV2({ doGenerate })
+    const model = new MockLanguageModelV3({ doGenerate })
     const narrator = createNarrator(model, baseConfig, logger)
     const result = await narrator.summarize(
       { type: "todo.completed.all" },
@@ -194,7 +198,7 @@ describe("narrator logger injection", () => {
     const doGenerate = vi.fn(async () => {
       throw new Error("x")
     })
-    const model = new MockLanguageModelV2({ doGenerate })
+    const model = new MockLanguageModelV3({ doGenerate })
     const narrator = createNarrator(model, baseConfig)
     const result = await narrator.summarize(
       { type: "session.idle" },

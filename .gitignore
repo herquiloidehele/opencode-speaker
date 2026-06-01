@@ -3,4 +3,6 @@ dist/
 .opencode/
 .idea/
 *.log
-docs/
+.DS_Store
+docs/*
+!docs/superpowers/

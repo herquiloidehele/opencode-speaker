@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest"
-import { MockSpeechModelV2 } from "ai/test"
+import { MockSpeechModelV3 } from "ai/test"
 import { createAiSdkProvider } from "../src/tts/ai-sdk.js"
 
 function mockSpeechModel(opts: {
@@ -17,7 +17,7 @@ function mockSpeechModel(opts: {
       response: { timestamp: new Date(), modelId: "test", headers: {} },
     }
   })
-  return { model: new MockSpeechModelV2({ doGenerate }), doGenerate }
+  return { model: new MockSpeechModelV3({ doGenerate }), doGenerate }
 }
 
 describe("ai-sdk TTS provider", () => {
@@ -88,7 +88,7 @@ describe("ai-sdk TTS provider", () => {
       })
       throw new Error("should have aborted")
     })
-    const model = new MockSpeechModelV2({ doGenerate })
+    const model = new MockSpeechModelV3({ doGenerate })
     const provider = createAiSdkProvider({ model, provider: "openai" })
     const ac = new AbortController()
     setTimeout(() => ac.abort(), 20)
