@@ -211,57 +211,6 @@ A short startup line, spoken once when the plugin is ready. Default: `"Welcome t
 
 Set to `""` to disable. Skipped automatically when `startMuted: true` or `OPENCODE_VOICE_MUTE=1`.
 
-### Environment flags
-
-- `OPENCODE_VOICE_MUTE=1` — start muted
-- `OPENCODE_VOICE_DISABLED=1` — load the plugin but do nothing
-
----
-
-## Controls
-
-### Slash commands
-
-These intercept the TUI directly — no LLM round-trip, so they take effect immediately, even mid-sentence:
-
-| Command | Effect |
-|---|---|
-| `/voice-stop` | Interrupt + drop queue. Plugin stays enabled. |
-| `/voice-off` | Mute: interrupt + drop queue + silence future events. |
-| `/voice-on` | Re-enable speech. |
-| `/voice-toggle` | Flip between on and off. |
-
-Register them in `opencode.json`:
-
-```jsonc
-{
-  "command": {
-    "voice-stop":   { "description": "Stop speaking now",   "template": "Call the voice tool with action stop." },
-    "voice-off":    { "description": "Mute the voice",      "template": "Call the voice tool with action mute." },
-    "voice-on":     { "description": "Unmute the voice",    "template": "Call the voice tool with action unmute." },
-    "voice-toggle": { "description": "Toggle voice on/off", "template": "Call the voice tool with action toggle." }
-  }
-}
-```
-
-Bind them to keys via [opencode keybinds](https://opencode.ai/docs/keybinds/) — e.g. `Esc` → `/voice-stop` for a panic button.
-
-### `voice` tool
-
-The agent (or you) can call the `voice` custom tool:
-
-| Action | Effect |
-|---|---|
-| `{ "action": "stop" }` | Interrupt and drop queue, keep enabled. |
-| `{ "action": "mute" }` (alias `off`) | Drop queue and silence future events. |
-| `{ "action": "unmute" }` (alias `on`) | Re-enable. |
-| `{ "action": "toggle" }` | Flip mute; returns `muted` or `unmuted`. |
-| `{ "action": "say", "text": "hello" }` | Speak arbitrary text. |
-| `{ "action": "test" }` | Speak a canned line — useful for verifying setup. |
-| `{ "action": "status" }` | JSON status (provider, voice, mute state, queue size). |
-
----
-
 ## Custom providers
 
 Runtime provider selection is currently built in. TTS slugs route `openai/*` and

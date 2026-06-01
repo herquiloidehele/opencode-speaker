@@ -207,44 +207,6 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
     }: {
       event: { type: string; [k: string]: unknown }
     }) => {
-      // Intercept TUI command shortcuts BEFORE the dispatcher so they take
-      // effect synchronously, without going through the narrator/queue path.
-      if (event.type === "tui.command.execute" || event.type === "command.executed") {
-        const name = extractCommandName(event)
-        await initLog.info("voice: command event received", {
-          operation: "intercepting TUI command event",
-          input: {
-            type: event.type,
-            command: name,
-            hasProperties: Boolean(
-              event.properties && typeof event.properties === "object",
-            ),
-          },
-        })
-        if (name && shortcutHandlers[name]) {
-          try {
-            const result = shortcutHandlers[name]()
-            await initLog.info("voice shortcut handled", {
-              operation: "handling TUI command shortcut",
-              input: { name, result },
-            })
-          } catch (err) {
-            await initLog.warn("voice shortcut failed", {
-              error: err,
-              operation: "handling TUI command shortcut",
-              input: { name },
-            })
-          }
-          return
-        }
-        if (name) {
-          await initLog.info("voice: command did not match any shortcut", {
-            operation: "intercepting TUI command event",
-            input: { name },
-          })
-        }
-      }
-
       // The dispatcher is the single entry point: it knows how to unwrap
       // OpenCode's `{ id, type, properties }` shape, fan out synthesized
       // events (todo.completed.*, message.reasoning.delta, message.text.delta),
@@ -258,9 +220,6 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
           input: { eventType: event.type },
         })
       }
-    },
-    tool: {
-      voice: createVoiceTool(commands),
     },
   }
 }
