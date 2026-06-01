@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest"
 import { renderTemplate, stripMarkdown, truncate } from "../src/handlers/template.js"
+import { normalizeEvent } from "../src/events/normalize.js"
 
 describe("renderTemplate", () => {
   it("formats session.error", () => {
@@ -20,6 +21,30 @@ describe("renderTemplate", () => {
     expect(renderTemplate({ type: "permission.asked", tool: "write" })).toBe(
       "I need your approval before I use write.",
     )
+  })
+
+  it("formats permission.asked from a real OpenCode v2 payload", () => {
+    const raw = {
+      type: "permission.asked",
+      properties: {
+        id: "p1",
+        sessionID: "s1",
+        permission: "bash",
+        patterns: [],
+        metadata: {},
+        always: [],
+        tool: { messageID: "m1", callID: "c1" },
+      },
+    }
+    expect(renderTemplate(normalizeEvent(raw))).toBe(
+      "I need your approval before I use bash.",
+    )
+  })
+
+  it("falls back when tool is a non-string object and no friendly name is available", () => {
+    expect(
+      renderTemplate({ type: "permission.asked", tool: { messageID: "m", callID: "c" } }),
+    ).toBe("I need your approval before I use an operation.")
   })
 
   it("formats permission.replied with normalized decisions", () => {

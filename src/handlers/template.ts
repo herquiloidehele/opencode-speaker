@@ -32,6 +32,10 @@ function basename(p: string): string {
   return i >= 0 ? trimmed.slice(i + 1) : trimmed
 }
 
+function asString(v: unknown): string | undefined {
+  return typeof v === "string" && v.length > 0 ? v : undefined
+}
+
 const templates: Record<string, Renderer> = {
   // --- Real OpenCode events ---
   "session.idle":         ()  => "I'm idle now and waiting for your next instruction.",
@@ -41,7 +45,7 @@ const templates: Record<string, Renderer> = {
     "I compacted the session, so older context is summarized and I have more room to continue.",
   "session.created":      () => "I'm starting a new session and getting ready to work.",
   "permission.asked":     (e) =>
-    `I need your approval before I use ${e.tool ?? "an operation"}.`,
+    `I need your approval before I use ${asString(e.tool) ?? "an operation"}.`,
   "permission.replied":   (e) => {
     const raw = String(e.decision ?? "responded").toLowerCase()
     const verb =
@@ -50,14 +54,14 @@ const templates: Record<string, Renderer> = {
         : raw === "deny" || raw === "reject" || raw === "no"
           ? "denied"
           : raw
-    const tool = e.tool ?? "the operation"
+    const tool = asString(e.tool) ?? "the operation"
     if (verb === "granted") return `I got approval to use ${tool}.`
     if (verb === "denied") return `I was denied permission to use ${tool}.`
     if (verb === "responded") return `I got a response for ${tool}.`
     return `I got a permission response for ${tool}: ${verb}.`
   },
-  "tool.execute.before":  (e) => `I'm running ${e.tool ?? "tool"} now.`,
-  "tool.execute.after":   (e) => `I finished running ${e.tool ?? "tool"}.`,
+  "tool.execute.before":  (e) => `I'm running ${asString(e.tool) ?? "tool"} now.`,
+  "tool.execute.after":   (e) => `I finished running ${asString(e.tool) ?? "tool"}.`,
   "file.edited":          (e) => {
     const raw = String(e.file ?? "")
     return raw ? `I edited ${basename(raw)}.` : "I edited a file."
