@@ -37,11 +37,36 @@ describe("narrator", () => {
     const out = await n.summarize({ type: "session.idle" }, ctx("did stuff"))
     expect(out).toBe("Done refactoring.")
     expect(doGenerate).toHaveBeenCalledOnce()
+    // capturedPrompt is JSON.stringify(input), which includes both the system
+    // message and the per-event context, so both are assertable here.
     expect(capturedPrompt).toContain("did stuff")
-    expect(capturedPrompt).toContain("Speak in first person as the one doing the coding work")
-    expect(capturedPrompt).toContain("Use I, me, and my")
-    expect(capturedPrompt).toContain("Do not describe yourself in third person")
+    expect(capturedPrompt).toContain("First person")
+    expect(capturedPrompt).toContain("read aloud")
     expect(capturedPrompt).not.toContain("Do not refer to the agent")
+  })
+
+  it("returns null without calling the model when context is empty", async () => {
+    const { model, doGenerate } = mockModel("should not be used")
+    const n = createNarrator(model, baseConfig)
+    const out = await n.summarize({ type: "session.idle" }, ctx(""))
+    expect(out).toBeNull()
+    expect(doGenerate).not.toHaveBeenCalled()
+  })
+
+  it("surfaces normalized event fields in the prompt", async () => {
+    let capturedPrompt = ""
+    const { model } = mockModel("ok", {
+      onCall: (input) => {
+        capturedPrompt = JSON.stringify(input)
+      },
+    })
+    const n = createNarrator(model, baseConfig)
+    await n.summarize(
+      { type: "session.idle", message: "Model overloaded", errorName: "UnknownError" },
+      ctx("tried a request"),
+    )
+    expect(capturedPrompt).toContain("Model overloaded")
+    expect(capturedPrompt).toContain("UnknownError")
   })
 
   it("uses catalog narration occasion text", async () => {
