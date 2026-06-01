@@ -169,7 +169,7 @@ function fakeLogger() {
 }
 
 describe("speech-queue logger injection", () => {
-  it("logs speak failures with text preview + voice + priority context", async () => {
+  it("delegates speak failures to onError without logging internally", async () => {
     const { logger, warns } = fakeLogger()
     const speak = vi.fn().mockRejectedValue(new Error("synth boom"))
     const onError = vi.fn()
@@ -187,12 +187,7 @@ describe("speech-queue logger injection", () => {
       enqueuedAt: 0,
     } as any)
     await q.idle()
-    expect(warns).toHaveLength(1)
-    expect(warns[0].message).toBe("speak failed")
-    expect(warns[0].ctx.error).toBeInstanceOf(Error)
-    expect(warns[0].ctx.operation).toBe("synthesizing queued speech")
-    expect(warns[0].ctx.input.textPreview).toMatch(/^Hello world/)
-    expect(warns[0].ctx.input.priority).toBe(2)
+    expect(warns).toHaveLength(0)
     expect(onError).toHaveBeenCalled()
   })
 })

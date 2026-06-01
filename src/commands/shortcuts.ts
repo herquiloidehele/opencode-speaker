@@ -1,8 +1,14 @@
+import { commandNameFromEvent, type RawEvent } from "../events/normalize.js"
+import { runVoiceAction } from "./actions.js"
+
 interface ShortcutCommands {
   stop(): void
   mute(): void
   unmute(): void
   toggle(): boolean
+  status(): unknown
+  say(text: string): void
+  test(): void
 }
 
 export type ShortcutHandlers = Record<string, () => string>
@@ -10,39 +16,20 @@ export type ShortcutHandlers = Record<string, () => string>
 export function createShortcutHandlers(commands: ShortcutCommands): ShortcutHandlers {
   return {
     "voice-stop": () => {
-      commands.stop()
-      return "stopped"
+      return runVoiceAction(commands, "stop")
     },
     "voice-off": () => {
-      commands.mute()
-      return "muted"
+      return runVoiceAction(commands, "mute")
     },
     "voice-on": () => {
-      commands.unmute()
-      return "unmuted"
+      return runVoiceAction(commands, "unmute")
     },
     "voice-toggle": () => {
-      const nowMuted = commands.toggle()
-      return nowMuted ? "muted" : "unmuted"
+      return runVoiceAction(commands, "toggle")
     },
   }
 }
 
-export function extractCommandName(event: { [k: string]: unknown }): string | null {
-  const props = event.properties && typeof event.properties === "object"
-    ? event.properties as Record<string, unknown>
-    : event
-  const candidates = [
-    props.command,
-    props.name,
-    props.id,
-    event.command,
-    event.name,
-  ]
-  for (const c of candidates) {
-    if (typeof c === "string" && c.length > 0) {
-      return c.replace(/^\/+/, "").toLowerCase()
-    }
-  }
-  return null
+export function extractCommandName(event: RawEvent): string | null {
+  return commandNameFromEvent(event)
 }

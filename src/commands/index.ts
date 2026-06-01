@@ -8,6 +8,7 @@ export interface CommandsOptions {
     unmute(): void
     stop(): void
     size(): number
+    isMuted(): boolean
   }
   providerName: string
   voiceName?: string
@@ -32,38 +33,32 @@ export interface Commands {
 }
 
 export function createCommands(opts: CommandsOptions): Commands {
-  let muted = false
-
   function makeRequest(text: string, priority: Priority): SpeechRequest {
     return { id: randomUUID(), priority, text, enqueuedAt: Date.now() }
   }
 
   return {
     mute() {
-      muted = true
       opts.queue.mute()
     },
     unmute() {
-      muted = false
       opts.queue.unmute()
     },
     /** Toggle mute state. Returns the new muted state. */
     toggle() {
-      if (muted) {
-        muted = false
+      if (opts.queue.isMuted()) {
         opts.queue.unmute()
       } else {
-        muted = true
         opts.queue.mute()
       }
-      return muted
+      return opts.queue.isMuted()
     },
     /** Interrupt the current utterance (and drop the pending queue). */
     stop() {
       opts.queue.stop()
     },
     isMuted() {
-      return muted
+      return opts.queue.isMuted()
     },
     say(text: string) {
       opts.queue.push(makeRequest(text, Priority.NORMAL))
@@ -80,7 +75,7 @@ export function createCommands(opts: CommandsOptions): Commands {
       return {
         provider: opts.providerName,
         voice: opts.voiceName,
-        muted,
+        muted: opts.queue.isMuted(),
         queueSize: opts.queue.size(),
       }
     },

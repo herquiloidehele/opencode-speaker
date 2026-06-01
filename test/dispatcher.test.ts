@@ -74,8 +74,14 @@ describe("dispatcher", () => {
     const handle = vi.fn().mockResolvedValue(null)
     const push = vi.fn()
     const d = createDispatcher({ handler: { handle }, queue: { push } } as any)
-    await d.onMessagePart("assistant says hello")
-    await d.onToolStart("bash")
+    await d.onEvent({
+      type: "message.part.updated",
+      properties: { part: { id: "p1", type: "text", text: "assistant says hello" } },
+    })
+    await d.onEvent({
+      type: "tool.execute.before",
+      properties: { tool: "bash" },
+    })
     expect(d.getContext().assistantText).toContain("assistant says hello")
     expect(d.getContext().recentTools).toContain("bash")
   })
@@ -106,6 +112,20 @@ describe("dispatcher", () => {
     expect(forwarded.sessionID).toBe("s1")
     // Tool name should also have been tracked in narrator context.
     expect(d.getContext().recentTools).toContain("bash")
+  })
+
+  it("does not let properties.type override the event envelope type", async () => {
+    const handle = vi.fn().mockResolvedValue(null)
+    const push = vi.fn()
+    const d = createDispatcher({ handler: { handle }, queue: { push } } as any)
+
+    await d.onEvent({
+      type: "tool.execute.before",
+      properties: { type: "session.error", tool: "bash" },
+    })
+
+    const forwarded = handle.mock.calls.find(([e]) => e.tool === "bash")?.[0]
+    expect(forwarded.type).toBe("tool.execute.before")
   })
 
   it("emits message.reasoning.delta sentence-by-sentence from streaming parts", async () => {

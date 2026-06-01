@@ -24,14 +24,19 @@ export function createPlayer(opts: PlayerOptions): Player {
   const platform = opts.platform ?? process.platform
   let binary: string | null = null
 
-  async function buffer(stream: Buffer | ReadableStream<Uint8Array>): Promise<Buffer> {
+  async function buffer(stream: Buffer | ReadableStream<Uint8Array>, signal: AbortSignal): Promise<Buffer> {
     if (Buffer.isBuffer(stream)) return stream
     const chunks: Uint8Array[] = []
     const reader = stream.getReader()
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      if (value) chunks.push(value)
+    try {
+      while (true) {
+        if (signal.aborted) throw new DOMException("aborted", "AbortError")
+        const { done, value } = await reader.read()
+        if (done) break
+        if (value) chunks.push(value)
+      }
+    } finally {
+      if (signal.aborted) await reader.cancel().catch(() => undefined)
     }
     return Buffer.concat(chunks.map((c) => Buffer.from(c)))
   }
@@ -92,7 +97,7 @@ export function createPlayer(opts: PlayerOptions): Player {
     async play(audio, contentType, signal) {
       if (!binary) throw new Error("Audio player not initialized")
       if (signal.aborted) throw new DOMException("aborted", "AbortError")
-      const buf = await buffer(audio)
+      const buf = await buffer(audio, signal)
       const tmp = await writeTemp(buf, contentType)
       let cmd: string[]
       if (binary === "powershell") {
@@ -108,7 +113,10 @@ export function createPlayer(opts: PlayerOptions): Player {
         cmd = [binary, tmp.path]
       }
       try {
-        await opts.runner.run(cmd, signal)
+        const result = await opts.runner.run(cmd, signal)
+        if (result.exitCode !== 0) {
+          throw new Error(`audio playback failed with exit code ${result.exitCode}`)
+        }
       } finally {
         await rm(tmp.dir, { recursive: true, force: true })
       }

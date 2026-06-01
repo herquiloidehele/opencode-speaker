@@ -44,6 +44,20 @@ describe("narrator", () => {
     expect(capturedPrompt).not.toContain("Do not refer to the agent")
   })
 
+  it("uses catalog narration occasion text", async () => {
+    let capturedPrompt = ""
+    const { model } = mockModel("Done.", {
+      onCall: (input) => {
+        capturedPrompt = JSON.stringify(input)
+      },
+    })
+    const n = createNarrator(model, baseConfig)
+
+    await n.summarize({ type: "todo.completed.all" }, ctx("finished the list"))
+
+    expect(capturedPrompt).toContain("The user has finished all todos.")
+  })
+
   it("returns null when timeout elapses", async () => {
     const doGenerate = vi.fn(async ({ abortSignal }: { abortSignal?: AbortSignal }) => {
       await new Promise<void>((resolve, reject) => {

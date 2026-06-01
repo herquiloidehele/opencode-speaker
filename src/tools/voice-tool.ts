@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { PLUGIN_NAME } from "../config.js"
+import { runVoiceAction, VOICE_ACTION_ALIASES } from "../commands/actions.js"
 
 interface VoiceToolCommands {
   stop(): void
@@ -37,31 +38,7 @@ export function createVoiceTool(commands: VoiceToolCommands) {
       text: z.string().optional(),
     },
     async execute(args: VoiceToolArgs) {
-      if (args.action === "stop") {
-        commands.stop()
-        return "stopped"
-      }
-      if (args.action === "mute" || args.action === "off") {
-        commands.mute()
-        return "muted"
-      }
-      if (args.action === "unmute" || args.action === "on") {
-        commands.unmute()
-        return "unmuted"
-      }
-      if (args.action === "toggle") {
-        const nowMuted = commands.toggle()
-        return nowMuted ? "muted" : "unmuted"
-      }
-      if (args.action === "say") {
-        commands.say(args.text ?? "")
-        return "queued"
-      }
-      if (args.action === "test") {
-        commands.test()
-        return "test queued"
-      }
-      return JSON.stringify(commands.status())
+      return runVoiceAction(commands, VOICE_ACTION_ALIASES[args.action], args.text)
     },
   }
 }

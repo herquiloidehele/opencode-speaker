@@ -101,17 +101,6 @@ export class SpeechQueue {
         try {
           await this.opts.speak(next, abort.signal)
         } catch (err) {
-          if (this.opts.logger) {
-            await this.opts.logger.warn("speak failed", {
-              error: err,
-              operation: "synthesizing queued speech",
-              input: {
-                textPreview: next.text.slice(0, 80),
-                priority: next.priority,
-                enqueuedAt: next.enqueuedAt,
-              },
-            })
-          }
           this.opts.onError?.(err, next)
         } finally {
           this.current = null

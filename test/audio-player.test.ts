@@ -3,11 +3,11 @@ import { readdir } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { createPlayer } from "../src/audio/player.js"
 
-const fakeRunner = (hasBin: Record<string, boolean>, log: string[][]) => ({
+const fakeRunner = (hasBin: Record<string, boolean>, log: string[][], exitCode = 0) => ({
   has: async (b: string) => hasBin[b] ?? false,
   run: async (cmd: string[]) => {
     log.push(cmd)
-    return { exitCode: 0 }
+    return { exitCode }
   },
 })
 
@@ -98,5 +98,36 @@ describe("audio player", () => {
       (name) => name.startsWith("opencode-speaker-") && !before.has(name),
     )
     expect(leaked).toEqual([])
+  })
+
+  it("aborts while buffering a stream", async () => {
+    const cmds: string[][] = []
+    const p = createPlayer({ platform: "darwin", runner: fakeRunner({ afplay: true }, cmds) })
+    await p.init()
+    const ac = new AbortController()
+    const stream = new ReadableStream<Uint8Array>({
+      start(ctrl) {
+        ctrl.enqueue(new Uint8Array([1, 2, 3]))
+        ac.abort()
+      },
+    })
+
+    await expect(p.play(stream, "audio/mpeg", ac.signal)).rejects.toMatchObject({
+      name: "AbortError",
+    })
+    expect(cmds).toEqual([])
+  })
+
+  it("rejects when the audio runner exits non-zero", async () => {
+    const cmds: string[][] = []
+    const p = createPlayer({
+      platform: "darwin",
+      runner: fakeRunner({ afplay: true }, cmds, 1),
+    })
+    await p.init()
+
+    await expect(
+      p.play(Buffer.from("fake"), "audio/mpeg", new AbortController().signal),
+    ).rejects.toThrow("audio playback failed")
   })
 })

@@ -88,6 +88,17 @@ describe("handler registry", () => {
     expect(sr?.priority).toBe(Priority.CHATTY)
   })
 
+  it("uses canonical priority when event config omits priority", async () => {
+    const r = createHandlerRegistry({
+      events: { "permission.asked": { enabled: true, mode: "template" as const } },
+      narrator: fakeNarrator(null),
+      getContext: () => ({ assistantText: "", recentTools: [] }),
+    })
+
+    const req = await r.handle({ type: "permission.asked", tool: "bash" })
+    expect(req?.priority).toBe(Priority.URGENT)
+  })
+
   it("honors a per-event dedupKey override (used by streaming deltas)", async () => {
     const r = createHandlerRegistry({
       events: {

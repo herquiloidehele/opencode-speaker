@@ -1,9 +1,8 @@
-import "source-map-support/register"
-import { parseConfig, PLUGIN_NAME } from "./config.js"
-import { createLogger } from "./log.js"
+import "source-map-support/register.js"
+import { parseConfig, PLUGIN_NAME, type VoiceConfig } from "./config.js"
+import { createLogger, type Logger } from "./log.js"
 import { SpeechQueue } from "./queue/speech-queue.js"
 import { type SpeechRequest } from "./queue/types.js"
-import { registerProvider, getProvider } from "./tts/provider.js"
 import { createAiSdkProvider } from "./tts/ai-sdk.js"
 import { createPlayer, type Player } from "./audio/player.js"
 import { defaultRunner } from "./audio/runner.js"
@@ -39,6 +38,7 @@ type PluginCtx = {
 }
 
 type PluginOptions = Record<string, unknown> | undefined
+type Notifier = ReturnType<typeof createNotifier>
 
 function formatSchemaErrors(errors: { path: string; message: string }[]): string {
   const parts = errors.map((e) => (e.path ? `${e.path}: ${e.message}` : e.message))
@@ -81,17 +81,10 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
   // opencode passes per-plugin config as the second argument when the user
   // declares the plugin in tuple form: ["opencode-speaker", { ...options }].
   // We accept any user object and let parseConfig validate + apply defaults.
-  const rawConfig = options ?? {}
-  const parsed = parseConfig(rawConfig)
-
-  if (!parsed.ok) {
-    notifier.fatal(formatSchemaErrors(parsed.errors), {
-      operation: "parsing plugin config",
-      input: { errors: parsed.errors },
-    })
+  const config = loadConfig(options, notifier)
+  if (!config) {
     return {}
   }
-  const config = parsed.config
 
   if (!config.enabled) {
     await initLog.info(`${PLUGIN_NAME} disabled by config or env`, {
@@ -101,27 +94,11 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
   }
 
   // 1. Resolve narrator + TTS models from config slugs.
-  let languageModel
-  let resolvedSpeech
-  try {
-    languageModel = resolveLanguageModel(config.narrator.model)
-    resolvedSpeech = resolveSpeechModel(config.tts.model)
-  } catch (err) {
-    if (err instanceof ConfigError) {
-      notifier.fatal(`invalid model slug — ${err.message}`, {
-        error: err,
-        operation: "resolving model slugs",
-        input: { narrator: config.narrator.model, tts: config.tts.model },
-      })
-    } else {
-      notifier.fatal(`failed to resolve models — ${oneLine(err)}`, {
-        error: err,
-        operation: "resolving model slugs",
-        input: { narrator: config.narrator.model, tts: config.tts.model },
-      })
-    }
+  const models = resolveModelsOrDisable(config, notifier)
+  if (!models) {
     return {}
   }
+  const { languageModel, resolvedSpeech } = models
 
   const credCheck = checkCredentials(
     { narratorSlug: config.narrator.model, ttsSlug: config.tts.model },
@@ -138,72 +115,29 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
     return {}
   }
 
-  // 2. Register the AI SDK TTS provider.
-  const aiSdkProvider = createAiSdkProvider()
-  try {
-    await aiSdkProvider.init({
-      model: resolvedSpeech.model,
-      provider: resolvedSpeech.provider,
-      voice: config.tts.voice,
-    })
-  } catch (err) {
-    notifier.fatal(`TTS init failed — ${oneLine(err)}`, {
-      error: err,
-      operation: "initializing TTS provider",
-      input: { provider: resolvedSpeech.provider, voice: config.tts.voice },
-    })
-    return {}
-  }
-  registerProvider(aiSdkProvider)
-
-  const provider = getProvider(resolvedSpeech.provider)
-  if (!provider) {
-    notifier.fatal(
-      `provider not found after registration: ${resolvedSpeech.provider}`,
-      {
-        operation: "looking up TTS provider after init",
-        input: { provider: resolvedSpeech.provider },
-      },
-    )
-    return {}
-  }
+  // 2. Build the AI SDK TTS provider.
+  const provider = createAiSdkProvider({
+    model: resolvedSpeech.model,
+    provider: resolvedSpeech.provider,
+    voice: config.tts.voice,
+  })
 
   // 3. Set up audio player. The AI SDK provider returns raw audio bytes that
   // we need to hand off to the OS's audio playback binary.
-  let player: Player | null = null
-  try {
-    const runner = await defaultRunner()
-    player = createPlayer({ runner })
-    await player.init()
-  } catch (err) {
-    await audioLog.warn(
-      "Audio player unavailable; cloud providers may not produce output",
-      {
-        error: err,
-        operation: "initializing audio player",
-        input: { platform: process.platform },
-      },
-    )
-    player = null
-  }
+  const player = await initPlayer(audioLog)
 
   // 4. Build the speak function used by the queue.
+  const ttsConfig = config.tts
   async function speak(req: SpeechRequest, signal: AbortSignal): Promise<void> {
-    const result = await provider!.synthesize(
+    if (!player) return
+    const result = await provider.synthesize(
       req.text,
       {
-        voice: config.tts.voice,
-        rate: config.tts.rate,
-        pitch: config.tts.pitch,
+        voice: ttsConfig.voice,
+        rate: ttsConfig.rate,
       },
       signal,
     )
-    if (!player) {
-      await audioLog.warn("Audio produced but no player available; dropping audio", {
-        operation: "playing synthesized audio",
-      })
-      return
-    }
     await player.play(result.audio, result.contentType, signal)
   }
 
@@ -214,9 +148,9 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
     now: () => Date.now(),
     logger: queueLog,
     onError: (err, req) => {
-      void queueLog.warn("speak failed at boundary", {
+      void queueLog.warn("speak failed", {
         error: err,
-        operation: "speech-queue onError boundary",
+        operation: "speaking queued request",
         input: { textPreview: req.text.slice(0, 80), priority: req.priority },
       })
     },
@@ -328,6 +262,55 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
     tool: {
       voice: createVoiceTool(commands),
     },
+  }
+}
+
+function loadConfig(options: PluginOptions, notifier: Notifier): VoiceConfig | null {
+  const parsed = parseConfig(options ?? {})
+
+  if (!parsed.ok) {
+    notifier.fatal(formatSchemaErrors(parsed.errors), {
+      operation: "parsing plugin config",
+      input: { errors: parsed.errors },
+    })
+    return null
+  }
+
+  return parsed.config
+}
+
+function resolveModelsOrDisable(config: VoiceConfig, notifier: Notifier) {
+  try {
+    return {
+      languageModel: resolveLanguageModel(config.narrator.model),
+      resolvedSpeech: resolveSpeechModel(config.tts.model),
+    }
+  } catch (err) {
+    const summary = err instanceof ConfigError
+      ? `invalid model slug — ${err.message}`
+      : `failed to resolve models — ${oneLine(err)}`
+    notifier.fatal(summary, {
+      error: err,
+      operation: "resolving model slugs",
+      input: { narrator: config.narrator.model, tts: config.tts.model },
+    })
+    return null
+  }
+}
+
+async function initPlayer(audioLog: Logger): Promise<Player | null> {
+  try {
+    const runner = await defaultRunner()
+    const player = createPlayer({ runner })
+    await player.init()
+    return player
+  } catch (err) {
+    await audioLog.warn("Audio player unavailable; speech output disabled", {
+      error: err,
+      operation: "initializing audio player",
+      input: { platform: process.platform },
+    })
+    return null
   }
 }
 

@@ -128,32 +128,27 @@ export function serializeError(err: unknown): SerializedError {
     return { name: "NonError", message: nonErrorMessage(err) }
   }
   try {
-    const stack = err.stack
-    const frame = parseTopFrame(stack)
-    const out: SerializedError = {
-      name: err.name,
-      message: err.message,
-      ...(stack ? { stack } : {}),
-      ...frame,
-    }
-    const code = (err as { code?: string | number }).code
-    if (code !== undefined) out.code = code
-    const cause = (err as { cause?: unknown }).cause
-    if (cause instanceof Error) {
-      out.cause = {
-        name: cause.name,
-        message: cause.message,
-        ...(cause.stack ? { stack: cause.stack } : {}),
-        ...parseTopFrame(cause.stack),
-        ...((cause as { code?: string | number }).code !== undefined
-          ? { code: (cause as unknown as { code: string | number }).code }
-          : {}),
-      }
-    }
-    return out
+    return serializeErrorDepth(err, 2)
   } catch {
     return { name: err.name ?? "Error", message: err.message ?? "" }
   }
+}
+
+function serializeErrorDepth(err: Error, depth: number): SerializedError {
+  const stack = err.stack
+  const out: SerializedError = {
+    name: err.name,
+    message: err.message,
+    ...(stack ? { stack } : {}),
+    ...parseTopFrame(stack),
+  }
+  const code = (err as { code?: string | number }).code
+  if (code !== undefined) out.code = code
+  const cause = (err as { cause?: unknown }).cause
+  if (depth > 0 && cause instanceof Error) {
+    out.cause = serializeErrorDepth(cause, depth - 1)
+  }
+  return out
 }
 
 interface OpencodeClient {

@@ -2,6 +2,7 @@ import type { SpeechRequest } from "./queue/types.js"
 import type { HandlerRegistry } from "./handlers/index.js"
 import type { NarrationContext } from "./handlers/narrator.js"
 import type { Logger } from "./log.js"
+import { normalizeEvent, type RawEvent } from "./events/normalize.js"
 
 interface QueueIfc {
   push(req: SpeechRequest): void
@@ -34,9 +35,7 @@ interface PartLike {
 }
 
 export interface Dispatcher {
-  onEvent(event: { type: string; [k: string]: unknown }): Promise<void>
-  onMessagePart(text: string): Promise<void>
-  onToolStart(tool: string): Promise<void>
+  onEvent(event: RawEvent): Promise<void>
   getContext(): NarrationContext
 }
 
@@ -191,40 +190,24 @@ export function createDispatcher(opts: DispatcherOptions): Dispatcher {
 
   return {
     async onEvent(event) {
-      // OpenCode delivers events as { id, type, properties }. Older paths and
-      // some tests pass fields at the top level; merge both so templates can
-      // reach `e.tool`, `e.message`, `e.todos`, etc. without caring about the
-      // shape.
-      const props = ((event as any).properties && typeof (event as any).properties === "object"
-        ? (event as any).properties
-        : {}) as Record<string, unknown>
+      const normalized = normalizeEvent(event)
 
-      if (event.type === "todo.updated") {
-        const todos = (props.todos ?? (event as any).todos) as TodoSnapshot[] | undefined
+      if (normalized.type === "todo.updated") {
+        const todos = normalized.todos as TodoSnapshot[] | undefined
         return handleTodoUpdated({ todos })
       }
 
-      if (event.type === "message.part.updated") {
-        const part = (props.part ?? (event as any).part) as PartLike | undefined
+      if (normalized.type === "message.part.updated") {
+        const part = normalized.part as PartLike | undefined
         return handleMessagePart({ part })
       }
 
-      if (event.type === "tool.execute.before") {
-        const tool = (props.tool ?? (event as any).tool) as string | undefined
+      if (normalized.type === "tool.execute.before") {
+        const tool = normalized.tool as string | undefined
         if (typeof tool === "string") trackTool(tool)
       }
 
-      // Flatten properties into the event so existing templates that read
-      // `e.tool`, `e.message`, `e.file`, etc. keep working regardless of the
-      // wire shape.
-      const forwarded = { ...event, ...props }
-      await fire(forwarded)
-    },
-    async onMessagePart(text) {
-      appendText(text)
-    },
-    async onToolStart(tool) {
-      trackTool(tool)
+      await fire(normalized)
     },
     getContext() {
       return { assistantText, recentTools: [...recentTools] }

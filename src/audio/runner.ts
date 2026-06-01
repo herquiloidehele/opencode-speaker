@@ -39,22 +39,31 @@ export async function defaultRunner(): Promise<Runner> {
     return false
   }
 
+  const ABORT_KILL_MS = 1000
+
   async function run(cmd: string[], signal: AbortSignal): Promise<{ exitCode: number }> {
     if (signal.aborted) throw new DOMException("aborted", "AbortError")
     return await new Promise((resolve, reject) => {
       const child = spawn(cmd[0], cmd.slice(1), { stdio: "ignore" })
+      let killTimer: NodeJS.Timeout | undefined
+      const cleanup = () => {
+        signal.removeEventListener("abort", onAbort)
+        if (killTimer) clearTimeout(killTimer)
+      }
       const onAbort = () => {
         child.kill("SIGTERM")
+        killTimer = setTimeout(() => child.kill("SIGKILL"), ABORT_KILL_MS)
       }
       signal.addEventListener("abort", onAbort)
       child.on("error", (e) => {
-        signal.removeEventListener("abort", onAbort)
+        cleanup()
         reject(e)
       })
       child.on("exit", (code) => {
-        signal.removeEventListener("abort", onAbort)
+        cleanup()
         if (signal.aborted) reject(new DOMException("aborted", "AbortError"))
-        else resolve({ exitCode: code ?? 0 })
+        else if ((code ?? 0) !== 0) reject(new Error(`process exited with code ${code ?? 0}`))
+        else resolve({ exitCode: 0 })
       })
     })
   }

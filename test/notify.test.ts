@@ -59,7 +59,7 @@ describe("createNotifier.fatal", () => {
     expect(showToast).not.toHaveBeenCalled()
   })
 
-  it("does not throw when showToast rejects; logs result after timer fires", async () => {
+  it("does not throw when showToast rejects; debug logs the failure", async () => {
     const showToast = vi.fn().mockRejectedValue(new Error("boom"))
     const logger = makeLogger()
     const notifier = createNotifier({ tui: { showToast } }, logger)
@@ -67,13 +67,13 @@ describe("createNotifier.fatal", () => {
     expect(() => notifier.fatal("hi")).not.toThrow()
     await vi.advanceTimersByTimeAsync(2500)
 
-    expect(logger.info).toHaveBeenCalledWith(
-      "[diag] toast surface failed",
+    expect(logger.debug).toHaveBeenCalledWith(
+      "toast failed",
       expect.objectContaining({ error: expect.any(Error) }),
     )
   })
 
-  it("does not throw when showToast throws synchronously; logs threw after timer fires", async () => {
+  it("does not throw when showToast throws synchronously; debug logs the failure", async () => {
     const showToast = vi.fn().mockImplementation(() => {
       throw new Error("sync boom")
     })
@@ -83,36 +83,32 @@ describe("createNotifier.fatal", () => {
     expect(() => notifier.fatal("hi")).not.toThrow()
     await vi.advanceTimersByTimeAsync(2500)
 
-    expect(logger.info).toHaveBeenCalledWith(
-      "[diag] toast surface threw",
+    expect(logger.debug).toHaveBeenCalledWith(
+      "toast failed",
       expect.objectContaining({ error: expect.any(Error) }),
     )
   })
 
-  it("logs unavailable when client.tui is missing (after timer fires)", async () => {
+  it("does not log when client.tui is missing", async () => {
     const logger = makeLogger()
     const notifier = createNotifier({}, logger)
 
     expect(() => notifier.fatal("hi")).not.toThrow()
     expect(logger.error).toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(2500)
-    expect(logger.info).toHaveBeenCalledWith(
-      "[diag] toast surface unavailable",
-      expect.any(Object),
-    )
+    expect(logger.info).not.toHaveBeenCalled()
+    expect(logger.debug).not.toHaveBeenCalled()
   })
 
-  it("logs unavailable when client is undefined (after timer fires)", async () => {
+  it("does not log when client is undefined", async () => {
     const logger = makeLogger()
     const notifier = createNotifier(undefined, logger)
 
     expect(() => notifier.fatal("hi")).not.toThrow()
     expect(logger.error).toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(2500)
-    expect(logger.info).toHaveBeenCalledWith(
-      "[diag] toast surface unavailable",
-      expect.any(Object),
-    )
+    expect(logger.info).not.toHaveBeenCalled()
+    expect(logger.debug).not.toHaveBeenCalled()
   })
 
   it("truncates the toast body to exactly 200 chars with ellipsis", () => {

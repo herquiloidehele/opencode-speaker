@@ -264,22 +264,13 @@ The agent (or you) can call the `voice` custom tool:
 
 ## Custom providers
 
-Register your own TTS provider from `opencode-speaker/api`:
+Runtime provider selection is currently built in. TTS slugs route `openai/*` and
+`elevenlabs/*`; narrator slugs route `openai/*` and `anthropic/*`.
 
-```ts
-import { registerProvider } from "opencode-speaker/api"
-
-registerProvider({
-  name: "my-tts",
-  capabilities: { streaming: false, offline: true },
-  async init() { /* ... */ },
-  async synthesize(text, opts, signal) {
-    return { audio: Buffer.from(/* ... */), contentType: "audio/wav" }
-  },
-})
-```
-
-The built-in slug parser only routes `openai/*` and `elevenlabs/*` to TTS, and `openai/*`/`anthropic/*` to the narrator. To use a custom provider today, fork the slug resolver in `src/ai-sdk/models.ts` or open an issue.
+The `opencode-speaker/api` entrypoint exports provider-related TypeScript types
+for integrations, but it does not register custom providers at runtime. To add a
+provider today, fork the model resolver in `src/ai-sdk/models.ts` or open an
+issue.
 
 ---
 

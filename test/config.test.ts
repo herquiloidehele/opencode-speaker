@@ -8,6 +8,7 @@ import {
   ENV_DISABLED,
   ENV_MUTE,
 } from "../src/config.js"
+import { EVENT_SPECS } from "../src/events/catalog.js"
 
 describe("parseConfig", () => {
   it("returns defaults when given empty object", () => {
@@ -168,6 +169,20 @@ describe("parseConfig", () => {
 })
 
 describe("DEFAULT_CONFIG", () => {
+  it("matches the canonical event catalog", () => {
+    const expected = Object.fromEntries(
+      Object.entries(EVENT_SPECS).map(([type, spec]) => [
+        type,
+        {
+          enabled: spec.defaultEnabled.normal,
+          mode: spec.mode,
+          ...(spec.priority ? { priority: spec.priority } : {}),
+        },
+      ]),
+    )
+    expect(DEFAULT_CONFIG.events).toEqual(expected)
+  })
+
   it("has all expected on-by-default events", () => {
     const enabled = Object.entries(DEFAULT_CONFIG.events)
       .filter(([, v]) => v.enabled)

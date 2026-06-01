@@ -163,6 +163,18 @@ describe("OpencodeSpeaker init-failure toasts", () => {
     )
   })
 
+  it("disables plugin cleanly when model resolution fails", async () => {
+    const { ctx } = baseCtx()
+    const hooks = await OpencodeSpeaker(ctx, { tts: { model: "unknown/provider" } })
+
+    expect(hooks).toEqual({})
+    expect(ctx.client.app.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.objectContaining({ level: "error" }),
+      }),
+    )
+  })
+
   it("toasts when both narrator and tts keys are missing", async () => {
     vi.unstubAllEnvs()
     vi.stubEnv("OPENAI_API_KEY", "")

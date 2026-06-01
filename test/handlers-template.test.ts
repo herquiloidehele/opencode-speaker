@@ -58,6 +58,9 @@ describe("renderTemplate", () => {
     expect(
       renderTemplate({ type: "file.edited", file: "/repo/src/index.ts" }),
     ).toBe("I edited index.ts.")
+    expect(renderTemplate({ type: "file.edited", file: "/tmp/example.ts" })).toBe(
+      "I edited example.ts.",
+    )
     expect(renderTemplate({ type: "file.edited" })).toBe("I edited a file.")
   })
 

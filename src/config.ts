@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { SLUG_RE } from "./ai-sdk/models.js"
+import { defaultEventsForVerbosity, type Verbosity } from "./events/catalog.js"
 
 /** Plugin identity. Used as the log scope, tmpdir prefix, and error labels. */
 export const PLUGIN_NAME = "opencode-speaker"
@@ -75,52 +76,13 @@ export type EventConfig = z.infer<typeof EventConfigSchema>
 //        - "todo.completed.item" / "todo.completed.all" (from `todo.updated`)
 //        - "message.text.delta" / "message.reasoning.delta" (from per-sentence
 //          deltas of `message.part.updated` text and reasoning parts).
-const DEFAULT_EVENTS: Record<
-  string,
-  { enabled: boolean; mode: "template" | "narrate" | "verbatim"; priority?: "urgent" | "normal" | "chatty" }
-> = {
-  // --- Real OpenCode events ---
-  "session.idle":         { enabled: true,  mode: "narrate" },
-  "session.error":        { enabled: true,  mode: "template", priority: "urgent" },
-  "session.compacted":    { enabled: true,  mode: "template" },
-  "session.created":      { enabled: true,  mode: "template" },
-  "permission.asked":     { enabled: true,  mode: "template", priority: "urgent" },
-  "permission.replied":   { enabled: true,  mode: "template" },
-  "tool.execute.before":  { enabled: true,  mode: "template" },
-  "tool.execute.after":   { enabled: true,  mode: "template" },
-  "file.edited":          { enabled: true,  mode: "template" },
-  "command.executed":     { enabled: true,  mode: "template" },
-  "message.updated":      { enabled: false, mode: "verbatim" },
-  "message.reasoning.delta": { enabled: true,  mode: "verbatim", priority: "chatty" },
-  "message.text.delta":      { enabled: false, mode: "verbatim", priority: "chatty" },
-  "todo.completed.item":     { enabled: true,  mode: "template" },
-  "todo.completed.all":      { enabled: true,  mode: "narrate" },
+function presetEvents(verbosity: Verbosity) {
+  return defaultEventsForVerbosity(verbosity)
 }
 
-const MINIMAL_EVENTS: Record<
-  string,
-  { enabled: boolean; mode: "template" | "narrate" | "verbatim"; priority?: "urgent" | "normal" | "chatty" }
-> = {
-  ...DEFAULT_EVENTS,
-  "session.compacted":       { ...DEFAULT_EVENTS["session.compacted"], enabled: false },
-  "session.created":         { ...DEFAULT_EVENTS["session.created"], enabled: false },
-  "permission.replied":      { ...DEFAULT_EVENTS["permission.replied"], enabled: false },
-  "tool.execute.before":     { ...DEFAULT_EVENTS["tool.execute.before"], enabled: false },
-  "tool.execute.after":      { ...DEFAULT_EVENTS["tool.execute.after"], enabled: false },
-  "file.edited":             { ...DEFAULT_EVENTS["file.edited"], enabled: false },
-  "command.executed":        { ...DEFAULT_EVENTS["command.executed"], enabled: false },
-  "message.reasoning.delta": { ...DEFAULT_EVENTS["message.reasoning.delta"], enabled: false },
-  "message.text.delta":      { ...DEFAULT_EVENTS["message.text.delta"], enabled: false },
-  "message.updated":         { ...DEFAULT_EVENTS["message.updated"], enabled: false },
-  "todo.completed.item":     { ...DEFAULT_EVENTS["todo.completed.item"], enabled: false },
-}
-
-function presetEvents(verbosity: "minimal" | "normal" | "verbose") {
-  if (verbosity === "minimal") return MINIMAL_EVENTS
-  return DEFAULT_EVENTS
-}
-
-export const DEFAULT_CONFIG: VoiceConfig = VoiceConfigSchema.parse({ events: DEFAULT_EVENTS })
+export const DEFAULT_CONFIG: VoiceConfig = VoiceConfigSchema.parse({
+  events: defaultEventsForVerbosity("normal"),
+})
 
 export type ParseResult =
   | { ok: true; config: VoiceConfig }

@@ -43,9 +43,7 @@ const templates: Record<string, Renderer> = {
   "permission.asked":     (e) =>
     `I need your approval before I use ${e.tool ?? "an operation"}.`,
   "permission.replied":   (e) => {
-    const raw = String(
-      e.decision ?? e.response ?? e.reply ?? e.result ?? "responded",
-    ).toLowerCase()
+    const raw = String(e.decision ?? "responded").toLowerCase()
     const verb =
       raw === "allow" || raw === "approve" || raw === "accept" || raw === "yes"
         ? "granted"
@@ -61,11 +59,11 @@ const templates: Record<string, Renderer> = {
   "tool.execute.before":  (e) => `I'm running ${e.tool ?? "tool"} now.`,
   "tool.execute.after":   (e) => `I finished running ${e.tool ?? "tool"}.`,
   "file.edited":          (e) => {
-    const raw = String(e.file ?? e.path ?? e.filePath ?? "")
+    const raw = String(e.file ?? "")
     return raw ? `I edited ${basename(raw)}.` : "I edited a file."
   },
   "command.executed":     (e) => {
-    const name = String(e.command ?? e.name ?? "").trim()
+    const name = String(e.command ?? "").trim()
     return name ? `I ran ${name}.` : "I ran a command."
   },
   "message.updated":      (e) => truncate(stripMarkdown(String(e.text ?? "")), 600),

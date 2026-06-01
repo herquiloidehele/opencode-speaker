@@ -32,45 +32,29 @@ function buildMessage(summary: string): string {
   return raw.slice(0, TOAST_MAX_LEN - 1) + "…"
 }
 
-function publishToast(
+async function showToastSafe(
   client: NotifierClient | undefined,
   message: string,
   variant: ToastVariant,
   logger: NotifyLogger,
-): void {
-  void logger.info("[diag] publishToast fired", { message, variant })
+): Promise<void> {
   // The SDK's showToast uses `this._client` internally. Calling it as a
   // detached function loses `this` and throws TypeError. We call it as a
   // method on `tui` to preserve the binding.
   const tui = client?.tui
   if (!tui || typeof tui.showToast !== "function") {
-    void logger.info("[diag] toast surface unavailable", {
-      message,
-      clientShape: client ? Object.keys(client) : null,
-      tuiShape: tui ? Object.keys(tui as object) : null,
-    })
     return
   }
   try {
-    const result = tui.showToast({
+    await tui.showToast({
       body: { message, variant, duration: TOAST_DURATION_MS },
     })
-    if (result && typeof (result as Promise<unknown>).then === "function") {
-      ;(result as Promise<unknown>).then(
-        (ok) => {
-          void logger.info("[diag] toast surface result", { ok, message })
-        },
-        (error) => {
-          void logger.info("[diag] toast surface failed", { error, message })
-        },
-      )
-    } else {
-      void logger.info("[diag] toast surface returned non-promise", {
-        result: String(result),
-      })
-    }
   } catch (error) {
-    void logger.info("[diag] toast surface threw", { error, message })
+    void logger.debug("toast failed", {
+      error,
+      operation: "showing toast",
+      input: { message, variant },
+    })
   }
 }
 
@@ -83,7 +67,7 @@ function tryShowToast(
   // Defer to let the TUI subscribe to the event stream first. The plugin's
   // function may have already returned by the time this fires — that is fine,
   // since the host keeps the plugin's JS runtime alive for the session.
-  setTimeout(() => publishToast(client, message, variant, logger), TOAST_DEFER_MS)
+  setTimeout(() => void showToastSafe(client, message, variant, logger), TOAST_DEFER_MS)
 }
 
 export function createNotifier(

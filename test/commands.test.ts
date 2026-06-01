@@ -4,13 +4,15 @@ import { Priority } from "../src/queue/types.js"
 
 function fakeQueue() {
   const log: string[] = []
+  let muted = false
   return {
     log,
     push: vi.fn((r: any) => log.push(`push:${r.text}`)),
-    mute: vi.fn(() => log.push("mute")),
-    unmute: vi.fn(() => log.push("unmute")),
+    mute: vi.fn(() => { muted = true; log.push("mute") }),
+    unmute: vi.fn(() => { muted = false; log.push("unmute") }),
     stop: vi.fn(() => log.push("stop")),
     size: vi.fn(() => 3),
+    isMuted: vi.fn(() => muted),
   } as any
 }
 
@@ -76,5 +78,22 @@ describe("commands", () => {
     expect(s.voice).toBe("nova")
     expect(s.queueSize).toBe(3)
     expect(s.muted).toBe(false)
+  })
+
+  it("reports mute state from the queue", () => {
+    let muted = true
+    const q = {
+      push: vi.fn(),
+      mute: vi.fn(() => { muted = true }),
+      unmute: vi.fn(() => { muted = false }),
+      stop: vi.fn(),
+      size: vi.fn(() => 0),
+      isMuted: vi.fn(() => muted),
+    }
+    const c = createCommands({ queue: q, providerName: "openai" })
+
+    expect(c.status().muted).toBe(true)
+    c.unmute()
+    expect(c.status().muted).toBe(false)
   })
 })

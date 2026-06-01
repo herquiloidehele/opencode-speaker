@@ -1,13 +1,7 @@
 /**
- * Public API for opencode-speaker. Import from `opencode-speaker/api` to
- * register custom TTS providers without interfering with the plugin's loader
- * contract.
- *
- * @example
- *   import { registerProvider } from "opencode-speaker/api"
- *   registerProvider({ name: "my-tts", ... })
+ * Public API for opencode-speaker. Runtime provider selection is owned by the
+ * plugin startup path; this module only exposes stable provider-related types.
  */
-export { registerProvider } from "./tts/provider.js"
 export type {
   TTSProvider,
   SynthesisOptions,

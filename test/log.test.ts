@@ -84,7 +84,7 @@ describe("serializeError", () => {
     expect(serializeError(err).code).toBe("ENOENT")
   })
 
-  it("recurses one level into cause", () => {
+  it("recurses into nested causes with a depth limit", () => {
     const root = new Error("root")
     const wrapped = new Error("wrapped", { cause: root })
     const out = serializeError(wrapped)
@@ -93,7 +93,7 @@ describe("serializeError", () => {
     const wrap2 = new Error("outer", { cause: deeper })
     const out2 = serializeError(wrap2)
     expect(out2.cause?.message).toBe("deeper")
-    expect((out2.cause as any).cause).toBeUndefined()
+    expect(out2.cause?.cause?.message).toBe("deepest")
   })
 
   it("handles non-Error throws (string)", () => {

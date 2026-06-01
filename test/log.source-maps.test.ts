@@ -1,4 +1,4 @@
-import "source-map-support/register"
+import "source-map-support/register.js"
 import { describe, it, expect } from "vitest"
 import { serializeError } from "../src/log.js"
 

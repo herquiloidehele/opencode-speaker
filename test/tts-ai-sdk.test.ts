@@ -23,8 +23,7 @@ function mockSpeechModel(opts: {
 describe("ai-sdk TTS provider", () => {
   it("returns a Buffer with an audio content type", async () => {
     const { model } = mockSpeechModel()
-    const provider = createAiSdkProvider()
-    await provider.init({ model, provider: "openai" })
+    const provider = createAiSdkProvider({ model, provider: "openai" })
     const result = await provider.synthesize(
       "hello",
       { voice: "alloy" },
@@ -39,8 +38,7 @@ describe("ai-sdk TTS provider", () => {
     const { model } = mockSpeechModel({
       onCall: (input) => { capturedVoice = input.voice },
     })
-    const provider = createAiSdkProvider()
-    await provider.init({ model, provider: "openai" })
+    const provider = createAiSdkProvider({ model, provider: "openai" })
     await provider.synthesize("hi", {}, new AbortController().signal)
     expect(capturedVoice).toBe("alloy")
   })
@@ -50,8 +48,7 @@ describe("ai-sdk TTS provider", () => {
     const { model } = mockSpeechModel({
       onCall: (input) => { capturedVoice = input.voice },
     })
-    const provider = createAiSdkProvider()
-    await provider.init({ model, provider: "elevenlabs" })
+    const provider = createAiSdkProvider({ model, provider: "elevenlabs" })
     await provider.synthesize("hi", {}, new AbortController().signal)
     expect(capturedVoice).toBeUndefined()
   })
@@ -61,8 +58,7 @@ describe("ai-sdk TTS provider", () => {
     const { model } = mockSpeechModel({
       onCall: (input) => { capturedVoice = input.voice },
     })
-    const provider = createAiSdkProvider()
-    await provider.init({ model, provider: "openai", voice: "nova" })
+    const provider = createAiSdkProvider({ model, provider: "openai", voice: "nova" })
     await provider.synthesize("hi", {}, new AbortController().signal)
     expect(capturedVoice).toBe("nova")
   })
@@ -72,8 +68,7 @@ describe("ai-sdk TTS provider", () => {
     const { model } = mockSpeechModel({
       onCall: (input) => { capturedVoice = input.voice },
     })
-    const provider = createAiSdkProvider()
-    await provider.init({ model, provider: "openai", voice: "nova" })
+    const provider = createAiSdkProvider({ model, provider: "openai", voice: "nova" })
     await provider.synthesize(
       "hi",
       { voice: "shimmer" },
@@ -94,8 +89,7 @@ describe("ai-sdk TTS provider", () => {
       throw new Error("should have aborted")
     })
     const model = new MockSpeechModelV2({ doGenerate })
-    const provider = createAiSdkProvider()
-    await provider.init({ model, provider: "openai" })
+    const provider = createAiSdkProvider({ model, provider: "openai" })
     const ac = new AbortController()
     setTimeout(() => ac.abort(), 20)
     await expect(
@@ -105,8 +99,7 @@ describe("ai-sdk TTS provider", () => {
 
   it("surfaces model errors", async () => {
     const { model } = mockSpeechModel({ throwError: new Error("rate limit") })
-    const provider = createAiSdkProvider()
-    await provider.init({ model, provider: "openai" })
+    const provider = createAiSdkProvider({ model, provider: "openai" })
     await expect(
       provider.synthesize("hi", {}, new AbortController().signal),
     ).rejects.toThrow(/rate limit/)
@@ -114,8 +107,14 @@ describe("ai-sdk TTS provider", () => {
 
   it("name reflects the resolved provider", async () => {
     const { model } = mockSpeechModel()
-    const provider = createAiSdkProvider()
-    await provider.init({ model, provider: "elevenlabs" })
+    const provider = createAiSdkProvider({ model, provider: "elevenlabs" })
     expect(provider.name).toBe("elevenlabs")
+  })
+
+  it("creates an initialized provider with a fixed name", () => {
+    const { model } = mockSpeechModel()
+    const provider = createAiSdkProvider({ model, provider: "openai", voice: "nova" })
+
+    expect(provider.name).toBe("openai")
   })
 })

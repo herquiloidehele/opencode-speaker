@@ -1,6 +1,7 @@
 import { generateText, type LanguageModel } from "ai"
 import { truncate } from "./template.js"
 import type { Logger } from "../log.js"
+import { EVENT_SPECS, type EventSpec, type EventType } from "../events/catalog.js"
 
 export interface NarrationContext {
   assistantText: string
@@ -27,12 +28,11 @@ function buildPrompt(
   const tools =
     ctx.recentTools.slice(-5).map((t) => `- ${t}`).join("\n") || "(none)"
   const occasion =
-    event.type === "todo.completed.all"
-      ? "just completed all todos"
-      : "just finished a turn"
+    (EVENT_SPECS[event.type as EventType] as EventSpec | undefined)?.narrationOccasion ??
+    "I just finished a turn."
   return [
     "You are working as a coding agent, and your output is read aloud by a TTS engine.",
-    `I ${occasion}. Explain what I actually did so the user can keep their eyes off the screen:`,
+    `${occasion} Explain what I actually did so the user can keep their eyes off the screen:`,
     "- what I attempted, what tools I used, what I changed, and the outcome,",
     "- any blockers, errors, or decisions that need the user's attention,",
     "- next steps if obvious.",
