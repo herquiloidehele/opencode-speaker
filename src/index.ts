@@ -6,7 +6,7 @@ import { type SpeechRequest } from "./queue/types.js"
 import { createAiSdkProvider } from "./tts/ai-sdk.js"
 import { createPlayer, type Player } from "./audio/player.js"
 import { defaultRunner } from "./audio/runner.js"
-import { createHandlerRegistry } from "./handlers/index.js"
+import { createHandlerRegistry } from "./handlers"
 import { createNarrator } from "./handlers/narrator.js"
 import {
   resolveLanguageModel,
@@ -14,9 +14,7 @@ import {
   ConfigError,
 } from "./ai-sdk/models.js"
 import { createDispatcher } from "./dispatcher.js"
-import { createCommands } from "./commands/index.js"
-import { createShortcutHandlers, extractCommandName } from "./commands/shortcuts.js"
-import { createVoiceTool } from "./tools/voice-tool.js"
+import { createCommands } from "./commands"
 import { createNotifier } from "./notify.js"
 import { checkCredentials } from "./ai-sdk/credentials.js"
 
@@ -192,14 +190,6 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
   if (config.greeting.trim().length > 0 && !config.startMuted) {
     commands.say(config.greeting)
   }
-
-  // Slash-command shortcuts intercepted from the TUI. These bypass the LLM
-  // for instant response (interrupt/mute take effect immediately, not after
-  // the model decides to call a tool).
-  //
-  // The exact wire shape of `tui.command.execute` differs across opencode
-  // versions, so we read defensively from common locations.
-  const shortcutHandlers = createShortcutHandlers(commands)
 
   return {
     event: async ({

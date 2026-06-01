@@ -86,6 +86,99 @@ describe("dispatcher", () => {
     expect(d.getContext().recentTools).toContain("bash")
   })
 
+  it("clears per-turn context after session.idle", async () => {
+    const handle = vi.fn().mockResolvedValue(null)
+    const push = vi.fn()
+    const d = createDispatcher({ handler: { handle }, queue: { push } } as any)
+    await d.onEvent({
+      type: "message.part.updated",
+      properties: { part: { id: "p1", type: "text", text: "turn one output" } },
+    })
+    await d.onEvent({ type: "tool.execute.before", properties: { tool: "bash" } })
+    await d.onEvent({ type: "session.idle" })
+    expect(d.getContext().assistantText).toBe("")
+    expect(d.getContext().recentTools).toEqual([])
+  })
+
+  it("narrator handler sees full turn context before reset", async () => {
+    let observed: { assistantText: string; recentTools: string[] } | null = null
+    const handle = vi.fn().mockImplementation((event: { type: string }) => {
+      if (event.type === "session.idle") {
+        observed = {
+          assistantText: d.getContext().assistantText,
+          recentTools: [...d.getContext().recentTools],
+        }
+      }
+      return Promise.resolve(null)
+    })
+    const push = vi.fn()
+    const d = createDispatcher({ handler: { handle }, queue: { push } } as any)
+    await d.onEvent({
+      type: "message.part.updated",
+      properties: { part: { id: "p1", type: "text", text: "turn one output" } },
+    })
+    await d.onEvent({ type: "tool.execute.before", properties: { tool: "bash" } })
+    await d.onEvent({ type: "session.idle" })
+    expect(observed).not.toBeNull()
+    expect(observed!.assistantText).toContain("turn one output")
+    expect(observed!.recentTools).toContain("bash")
+  })
+
+  it("isolates context across turns in the same session", async () => {
+    const handle = vi.fn().mockResolvedValue(null)
+    const push = vi.fn()
+    const d = createDispatcher({ handler: { handle }, queue: { push } } as any)
+
+    await d.onEvent({
+      type: "message.part.updated",
+      properties: { part: { id: "p1", type: "text", text: "turn one output" } },
+    })
+    await d.onEvent({ type: "tool.execute.before", properties: { tool: "bash" } })
+    await d.onEvent({ type: "session.idle" })
+
+    await d.onEvent({
+      type: "message.part.updated",
+      properties: { part: { id: "p2", type: "text", text: "turn two output" } },
+    })
+    await d.onEvent({ type: "tool.execute.before", properties: { tool: "read" } })
+
+    const ctx = d.getContext()
+    expect(ctx.assistantText).toContain("turn two output")
+    expect(ctx.assistantText).not.toContain("turn one output")
+    expect(ctx.recentTools).toContain("read")
+    expect(ctx.recentTools).not.toContain("bash")
+  })
+
+  it("session.created also clears per-turn context", async () => {
+    const handle = vi.fn().mockResolvedValue(null)
+    const push = vi.fn()
+    const d = createDispatcher({ handler: { handle }, queue: { push } } as any)
+    await d.onEvent({
+      type: "message.part.updated",
+      properties: { part: { id: "p1", type: "text", text: "leftover" } },
+    })
+    await d.onEvent({ type: "tool.execute.before", properties: { tool: "bash" } })
+    await d.onEvent({ type: "session.created" })
+    expect(d.getContext().assistantText).toBe("")
+    expect(d.getContext().recentTools).toEqual([])
+  })
+
+  it("still resets per-turn context when session.idle handler throws", async () => {
+    const handle = vi.fn().mockRejectedValue(new Error("boom"))
+    const push = vi.fn()
+    const d = createDispatcher({
+      handler: { handle },
+      queue: { push },
+      onError: () => {},
+    } as any)
+    await d.onEvent({
+      type: "message.part.updated",
+      properties: { part: { id: "p1", type: "text", text: "turn one output" } },
+    })
+    await d.onEvent({ type: "session.idle" })
+    expect(d.getContext().assistantText).toBe("")
+  })
+
   it("never throws when handler throws", async () => {
     const handle = vi.fn().mockRejectedValue(new Error("boom"))
     const push = vi.fn()

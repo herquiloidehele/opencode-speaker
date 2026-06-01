@@ -74,6 +74,19 @@ export function createDispatcher(opts: DispatcherOptions): Dispatcher {
     while (recentTools.length > toolWindow) recentTools.shift()
   }
 
+  // A "turn" is one user prompt + the agent response that follows it, ended by
+  // session.idle. Without this reset, assistantText/recentTools accumulate
+  // across every turn in a session, so the narrator's end-of-turn summary
+  // would describe everything since the session began instead of just this
+  // turn. Must run AFTER session.idle's handler chain so the narrator still
+  // sees the full turn's context.
+  function resetTurnState() {
+    assistantText = ""
+    recentTools.length = 0
+    partSeen.clear()
+    reasoningBuffer.clear()
+  }
+
   async function fire(event: { type: string; [k: string]: unknown }): Promise<void> {
     try {
       const sr = await opts.handler.handle(event)
@@ -207,7 +220,16 @@ export function createDispatcher(opts: DispatcherOptions): Dispatcher {
         if (typeof tool === "string") trackTool(tool)
       }
 
-      await fire(normalized)
+      try {
+        await fire(normalized)
+      } finally {
+        if (
+          normalized.type === "session.idle" ||
+          normalized.type === "session.created"
+        ) {
+          resetTurnState()
+        }
+      }
     },
     getContext() {
       return { assistantText, recentTools: [...recentTools] }
