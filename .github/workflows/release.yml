@@ -27,12 +27,6 @@ jobs:
       # Publishes with provenance (publishConfig.provenance=true). With Trusted
       # Publishing configured for this package on npmjs.com, no token is needed.
       - run: npm publish
-        # --- NPM_TOKEN fallback (if NOT using Trusted Publishing) ---
-        # Replace the line above with:
-        #   run: npm publish --provenance
-        # and uncomment:
-        # env:
-        #   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
