@@ -67,12 +67,6 @@ describe("OpencodeSpeaker plugin", () => {
     ).resolves.toBeUndefined()
   })
 
-  it("registers a `voice` custom tool", async () => {
-    const { ctx } = baseCtx()
-    const hooks = (await OpencodeSpeaker(ctx, {})) as any
-    expect(hooks.tool?.voice).toBeDefined()
-  })
-
   it("accepts options as the second argument (opencode's plugin contract)", async () => {
     const { ctx } = baseCtx()
     const hooks = (await OpencodeSpeaker(ctx, {

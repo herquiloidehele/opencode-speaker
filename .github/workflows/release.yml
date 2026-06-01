@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write   # create the GitHub Release
+  id-token: write   # OIDC: npm provenance + Trusted Publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      # Ensure an npm version that supports OIDC Trusted Publishing.
+      - run: npm install -g npm@latest
+      # Publishes with provenance (publishConfig.provenance=true). With Trusted
+      # Publishing configured for this package on npmjs.com, no token is needed.
+      - run: npm publish
+        # --- NPM_TOKEN fallback (if NOT using Trusted Publishing) ---
+        # Replace the line above with:
+        #   run: npm publish --provenance
+        # and uncomment:
+        # env:
+        #   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
