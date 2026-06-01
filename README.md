@@ -1,10 +1,22 @@
 # opencode-speaker
 
+[![npm version](https://img.shields.io/npm/v/opencode-speaker.svg)](https://www.npmjs.com/package/opencode-speaker)
+[![CI](https://github.com/herquiloidehele/opencode-speaker/actions/workflows/ci.yml/badge.svg)](https://github.com/herquiloidehele/opencode-speaker/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
 A speaker plugin for [opencode](https://opencode.ai) that **speaks agent activity out loud** through pluggable text-to-speech backends.
 
 Hear what your agent is doing while you work on something else — session summaries, errors, permission requests, and todo completions, narrated by an LLM and spoken by a TTS model.
 
 Supports **OpenAI** (default) and **ElevenLabs** for TTS, with **OpenAI** or **Anthropic** for the LLM narrator. Powered by the [Vercel AI SDK](https://sdk.vercel.ai).
+
+---
+
+## Requirements
+
+- **Node.js ≥ 20**
+- An API key for your chosen provider (OpenAI by default; ElevenLabs and/or Anthropic optional)
+- On Linux, a TTS/audio backend — see [Troubleshooting](#troubleshooting)
 
 ---
 

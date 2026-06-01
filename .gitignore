@@ -3,4 +3,5 @@ dist/
 .opencode/
 .idea/
 *.log
+.DS_Store
 docs/

@@ -1,7 +1,28 @@
 {
   "name": "opencode-speaker",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "Speaker plugin for opencode — speaks agent events through pluggable TTS backends.",
+  "keywords": [
+    "opencode",
+    "plugin",
+    "tts",
+    "text-to-speech",
+    "elevenlabs",
+    "openai",
+    "anthropic",
+    "voice",
+    "ai-sdk"
+  ],
+  "homepage": "https://github.com/herquiloidehele/opencode-speaker#readme",
+  "bugs": {
+    "url": "https://github.com/herquiloidehele/opencode-speaker/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/herquiloidehele/opencode-speaker.git"
+  },
+  "license": "MIT",
+  "author": "herquiloide <herquiloide@gmail.com>",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -19,6 +40,13 @@
     "dist",
     "README.md"
   ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
@@ -27,6 +55,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "audit:prod": "npm audit --omit=dev",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build",
     "demo:say": "tsx scripts/say.ts",
     "demo:queue": "tsx scripts/queue.ts",
     "demo:event": "tsx scripts/event.ts",
@@ -35,10 +64,10 @@
     "demo:greet": "tsx scripts/greet.ts"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^2.0.79",
-    "@ai-sdk/elevenlabs": "^1.0.28",
-    "@ai-sdk/openai": "^2.0.106",
-    "ai": "^5.0.192",
+    "@ai-sdk/anthropic": "^3.0.81",
+    "@ai-sdk/elevenlabs": "^2.0.33",
+    "@ai-sdk/openai": "^3.0.67",
+    "ai": "^6.0.194",
     "source-map-support": "^0.5.21",
     "zod": "^3.23.0"
   },
@@ -58,6 +87,5 @@
     "tsx": "^4.22.3",
     "typescript": "^5.4.0",
     "vitest": "^1.6.0"
-  },
-  "license": "MIT"
+  }
 }
