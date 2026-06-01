@@ -4,5 +4,4 @@ dist/
 .idea/
 *.log
 .DS_Store
-docs/*
-!docs/superpowers/
+docs/
