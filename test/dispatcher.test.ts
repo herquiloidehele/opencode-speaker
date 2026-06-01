@@ -322,6 +322,33 @@ describe("dispatcher", () => {
     expect(types).not.toContain("message.text.delta")
     expect(types).not.toContain("message.reasoning.delta")
   })
+
+  it("bridges v2 session.next.tool.* events to tool.execute.* with callID-resolved tool name", async () => {
+    const handle = vi.fn().mockResolvedValue(null)
+    const push = vi.fn()
+    const d = createDispatcher({ handler: { handle }, queue: { push } } as any)
+
+    await d.onEvent({
+      type: "session.next.tool.called",
+      properties: { timestamp: 0, sessionID: "s", callID: "c1", tool: "bash", input: {}, provider: { executed: true } },
+    })
+    await d.onEvent({
+      type: "session.next.tool.success",
+      properties: { timestamp: 1, sessionID: "s", callID: "c1", structured: {}, content: [], provider: { executed: true } },
+    })
+
+    const calls = handle.mock.calls.map(([e]) => e)
+    const before = calls.find((e) => e.type === "tool.execute.before")
+    const after = calls.find((e) => e.type === "tool.execute.after")
+    expect(before).toBeDefined()
+    expect(before.tool).toBe("bash")
+    expect(after).toBeDefined()
+    // tool name resolved from the prior `called` event via callID lookup
+    expect(after.tool).toBe("bash")
+
+    // recentTools is populated for the narrator context
+    expect(d.getContext().recentTools).toContain("bash")
+  })
 })
 
 import type { Logger } from "../src/log.js"

@@ -49,7 +49,8 @@ const templates: Record<string, Renderer> = {
   "permission.replied":   (e) => {
     const raw = String(e.decision ?? "responded").toLowerCase()
     const verb =
-      raw === "allow" || raw === "approve" || raw === "accept" || raw === "yes"
+      raw === "allow" || raw === "approve" || raw === "accept" || raw === "yes" ||
+      raw === "once" || raw === "always"
         ? "granted"
         : raw === "deny" || raw === "reject" || raw === "no"
           ? "denied"
@@ -70,7 +71,10 @@ const templates: Record<string, Renderer> = {
     const name = String(e.command ?? "").trim()
     return name ? `I ran ${name}.` : "I ran a command."
   },
-  "message.updated":      (e) => truncate(stripMarkdown(String(e.text ?? "")), 600),
+  // Note: `message.updated` carries `{ sessionID, info: Message }` — the
+  // message text lives in `info.parts`, not at the top level. Live narration
+  // is handled by the synthesized `message.text.delta` events derived from
+  // `message.part.updated`, so there is intentionally no template here.
 
   // --- Synthesized by src/dispatcher.ts ---
   "message.text.delta":      (e) => truncate(stripMarkdown(String(e.text ?? "")), 600),

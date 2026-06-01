@@ -51,6 +51,11 @@ export function createDispatcher(opts: DispatcherOptions): Dispatcher {
 
   let assistantText = ""
   const recentTools: string[] = []
+  // v2 `session.next.tool.success`/`.failed` only carry `callID`, not the
+  // tool name. We remember the callID -> tool mapping when the matching
+  // `tool.execute.before` (normalized from `session.next.tool.called`) fires
+  // so the after-event template can still say "I finished running X."
+  const toolByCallId = new Map<string, string>()
   const todoStatus = new Map<string, string>() // id -> last seen status
 
   // For streaming message parts (text + reasoning): how much of each part's
@@ -85,6 +90,7 @@ export function createDispatcher(opts: DispatcherOptions): Dispatcher {
     recentTools.length = 0
     partSeen.clear()
     reasoningBuffer.clear()
+    toolByCallId.clear()
   }
 
   async function fire(event: { type: string; [k: string]: unknown }): Promise<void> {
@@ -217,7 +223,21 @@ export function createDispatcher(opts: DispatcherOptions): Dispatcher {
 
       if (normalized.type === "tool.execute.before") {
         const tool = normalized.tool as string | undefined
-        if (typeof tool === "string") trackTool(tool)
+        const callID = normalized.callID as string | undefined
+        if (typeof tool === "string") {
+          trackTool(tool)
+          if (typeof callID === "string") toolByCallId.set(callID, tool)
+        }
+      } else if (normalized.type === "tool.execute.after") {
+        // v2 success/failed events lose the tool name — recover it from the
+        // matching `before` event so the template can say "I finished X."
+        if (typeof normalized.tool !== "string") {
+          const callID = normalized.callID as string | undefined
+          const remembered = callID ? toolByCallId.get(callID) : undefined
+          if (remembered) normalized.tool = remembered
+        }
+        const callID = normalized.callID as string | undefined
+        if (callID) toolByCallId.delete(callID)
       }
 
       try {

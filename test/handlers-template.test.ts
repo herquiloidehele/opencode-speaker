@@ -59,6 +59,112 @@ describe("renderTemplate", () => {
     )
   })
 
+  it("treats v2 permission.replied replies (`once` / `always` / `reject`) correctly", () => {
+    // v2 SDK uses reply: "once" | "always" | "reject"; normalize maps that
+    // into `decision`. "once" and "always" are forms of approval.
+    expect(
+      renderTemplate(
+        normalizeEvent({
+          type: "permission.replied",
+          properties: { sessionID: "s", requestID: "r", reply: "once" },
+        }),
+      ),
+    ).toBe("I got approval to use the operation.")
+    expect(
+      renderTemplate(
+        normalizeEvent({
+          type: "permission.replied",
+          properties: { sessionID: "s", requestID: "r", reply: "always" },
+        }),
+      ),
+    ).toBe("I got approval to use the operation.")
+    expect(
+      renderTemplate(
+        normalizeEvent({
+          type: "permission.replied",
+          properties: { sessionID: "s", requestID: "r", reply: "reject" },
+        }),
+      ),
+    ).toBe("I was denied permission to use the operation.")
+  })
+
+  it("aliases v1 permission.updated to permission.asked and pulls the tool name", () => {
+    // v1 SDK: EventPermissionUpdated.properties is a Permission whose own
+    // `type` field carries the action (e.g. "bash"). normalize lifts that
+    // out before the spread would clobber it.
+    expect(
+      renderTemplate(
+        normalizeEvent({
+          type: "permission.updated",
+          properties: {
+            id: "p",
+            type: "bash",
+            sessionID: "s",
+            messageID: "m",
+            title: "Run a shell command",
+            metadata: {},
+            time: { created: 0 },
+          },
+        }),
+      ),
+    ).toBe("I need your approval before I use bash.")
+  })
+
+  it("aliases v2 session.next.tool.called to tool.execute.before", () => {
+    expect(
+      renderTemplate(
+        normalizeEvent({
+          type: "session.next.tool.called",
+          properties: {
+            timestamp: 0,
+            sessionID: "s",
+            callID: "c",
+            tool: "bash",
+            input: {},
+            provider: { executed: true },
+          },
+        }),
+      ),
+    ).toBe("I'm running bash now.")
+  })
+
+  it("aliases v2 session.next.tool.success / failed to tool.execute.after", () => {
+    // success/failed don't carry a tool name themselves; the dispatcher
+    // resolves it from the callID it saw in the matching `.called`. Without
+    // that bridge the template falls back to the generic line, which is the
+    // safe behavior under direct renderTemplate calls.
+    expect(
+      renderTemplate(
+        normalizeEvent({
+          type: "session.next.tool.success",
+          properties: {
+            timestamp: 0,
+            sessionID: "s",
+            callID: "c",
+            structured: {},
+            content: [],
+            provider: { executed: true },
+          },
+        }),
+      ),
+    ).toBe("I finished running tool.")
+  })
+
+  it("extracts session.error message from nested error.data.message", () => {
+    // Real shape: properties.error.data.message — NOT properties.message.
+    expect(
+      renderTemplate(
+        normalizeEvent({
+          type: "session.error",
+          properties: {
+            sessionID: "s",
+            error: { name: "UnknownError", data: { message: "Model overloaded" } },
+          },
+        }),
+      ),
+    ).toBe("I hit a session error: Model overloaded. Check the log for details.")
+  })
+
   it("formats session.compacted", () => {
     expect(renderTemplate({ type: "session.compacted" })).toBe(
       "I compacted the session, so older context is summarized and I have more room to continue.",
@@ -115,10 +221,13 @@ describe("renderTemplate", () => {
     expect(renderTemplate({ type: "unknown.event" })).toBeNull()
   })
 
-  it("formats message.updated with stripped markdown", () => {
+  it("has no template for message.updated (live text uses synthesized deltas)", () => {
+    // message.updated's real payload is { sessionID, info: Message } with the
+    // text living in info.parts — not at the top level. Streaming text is
+    // surfaced via message.text.delta instead, so this event renders null.
     expect(
       renderTemplate({ type: "message.updated", text: "**Bold** and `code` text" }),
-    ).toBe("Bold and code text")
+    ).toBeNull()
   })
 
   it("has no template for the raw message.part.updated event", () => {
