@@ -64,7 +64,7 @@ function buildContext(
 ): string {
   // The dispatcher already bounds assistantText to its textWindow (4000), but
   // the narrator can be called directly (tests, demo scripts), so cap here too.
-  const text = truncate(ctx.assistantText, 2000)
+  const text = truncate(ctx.assistantText, 10000)
   const tools =
     ctx.recentTools.slice(-5).map((t) => `- ${t}`).join("\n") || "(none)"
   const occasion =
@@ -112,7 +112,6 @@ export function createNarrator(
           model,
           system: SYSTEM_PROMPT,
           temperature: 0.2,
-          maxOutputTokens: 220,
           prompt: buildContext(event, ctx),
           abortSignal: ac.signal,
         })
