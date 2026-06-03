@@ -23,6 +23,14 @@ export class SpeechQueue {
   push(req: SpeechRequest): void {
     if (this.muted) return
 
+    // Rule 1: an urgent announcement (permission ask, session error) should
+    // speak alone, not trailed by queued chatter that was enqueued just before
+    // it. Drop the pending chatty backlog; a chatty item that's *currently*
+    // speaking is interrupted by Rule 2 below.
+    if (req.priority >= Priority.URGENT) {
+      this.queue = this.queue.filter((q) => q.priority > Priority.CHATTY)
+    }
+
     // Rule 2: interrupt if higher priority than current.
     if (this.current && req.priority > this.current.req.priority) {
       this.queue.unshift(req)

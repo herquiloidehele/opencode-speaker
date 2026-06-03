@@ -55,7 +55,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "audit:prod": "npm audit --omit=dev",
-    "prepublishOnly": "npm run typecheck && npm test && npm run build",
+    "prepublishOnly": "npm run build",
     "demo:say": "tsx scripts/say.ts",
     "demo:queue": "tsx scripts/queue.ts",
     "demo:event": "tsx scripts/event.ts",

@@ -19,6 +19,14 @@ export interface DispatcherOptions {
   toolWindow?: number
   /** Max chars of reasoning buffer before forced flush when no sentence end is found. */
   reasoningFlushChars?: number
+  /** Clock source (injectable for tests). Defaults to Date.now. */
+  now?: () => number
+  /**
+   * How long after a `permission.replied` to keep muting reasoning/text
+   * narration, so a thought that streams just after the reply doesn't speak
+   * on top of the permission template. Defaults to 2000ms.
+   */
+  permissionMuteTailMs?: number
 }
 
 interface TodoSnapshot {
@@ -48,6 +56,8 @@ export function createDispatcher(opts: DispatcherOptions): Dispatcher {
   const textWindow = opts.textWindow ?? 4000
   const toolWindow = opts.toolWindow ?? 10
   const reasoningFlushChars = opts.reasoningFlushChars ?? 240
+  const now = opts.now ?? (() => Date.now())
+  const permissionMuteTailMs = opts.permissionMuteTailMs ?? 2000
 
   let assistantText = ""
   const recentTools: string[] = []
@@ -62,6 +72,23 @@ export function createDispatcher(opts: DispatcherOptions): Dispatcher {
   // text we have already processed. Each `message.part.updated` carries the
   // FULL current state of a part, so the delta is `part.text.slice(seenLen)`.
   const partSeen = new Map<string, number>()
+  // True between a `permission.asked` and its `permission.replied`. While set,
+  // the agent has paused for the user and opencode fires `session.idle`; the
+  // permission template already announced the pause, so we suppress the idle
+  // narration (and its turn-state reset) to avoid speaking twice about it.
+  let permissionPending = false
+  // `permission.replied` only carries `requestID` + `reply` — no friendly
+  // name. We remember the name from the matching `permission.asked` (whose
+  // `id` equals the reply's `requestID`) so the reply template can say what
+  // was actually granted instead of "the operation".
+  const permissionNameById = new Map<string, string>()
+  // Reasoning/text narration is muted while a permission is pending and for a
+  // short tail after the reply, so the agent's spoken thoughts don't double up
+  // with the permission template around the same moment. 0 = not muting.
+  let permissionMuteUntil = 0
+  function permissionMuteActive(): boolean {
+    return permissionPending || now() < permissionMuteUntil
+  }
   // For reasoning specifically, we buffer trailing text without a sentence
   // boundary so we don't speak half-thoughts like "Let me" / "think about".
   const reasoningBuffer = new Map<string, string>()
@@ -91,12 +118,23 @@ export function createDispatcher(opts: DispatcherOptions): Dispatcher {
     partSeen.clear()
     reasoningBuffer.clear()
     toolByCallId.clear()
+    permissionPending = false
   }
 
   async function fire(event: { type: string; [k: string]: unknown }): Promise<void> {
     try {
       const sr = await opts.handler.handle(event)
-      if (sr) opts.queue.push(sr)
+      if (sr) {
+        // DIAGNOSTIC: record every line we actually queue for speech, tagged
+        // with the event that produced it. This is how we see a "double" —
+        // two queued requests for one logical moment — and which events caused
+        // them. Remove once the permission double-speak is understood.
+        await opts.logger?.info("queued speech", {
+          operation: "queuing speech request",
+          input: { eventType: event.type, text: sr.text, dedupKey: sr.dedupKey, priority: sr.priority },
+        })
+        opts.queue.push(sr)
+      }
     } catch (err) {
       if (opts.logger) {
         await opts.logger.warn("handler failed", {
@@ -150,6 +188,9 @@ export function createDispatcher(opts: DispatcherOptions): Dispatcher {
     // Update assistant context for the narrator regardless of whether the
     // user has enabled live text narration.
     appendText(delta)
+    // Don't speak streamed text on top of a permission template. partSeen has
+    // already advanced (via computeDelta), so this text won't replay later.
+    if (permissionMuteActive()) return
     await fire({
       type: "message.text.delta",
       text: delta,
@@ -162,6 +203,14 @@ export function createDispatcher(opts: DispatcherOptions): Dispatcher {
     if (!part.id || typeof part.text !== "string") return
     const delta = computeDelta(part.id, part.text)
     if (!delta) return
+
+    // Mute the agent's spoken reasoning around a permission so it doesn't
+    // double up with the permission template. partSeen already advanced, and
+    // we drop any half-buffered sentence so it can't replay once unmuted.
+    if (permissionMuteActive()) {
+      reasoningBuffer.delete(part.id)
+      return
+    }
 
     let buffered = (reasoningBuffer.get(part.id) ?? "") + delta
 
@@ -210,6 +259,30 @@ export function createDispatcher(opts: DispatcherOptions): Dispatcher {
   return {
     async onEvent(event) {
       const normalized = normalizeEvent(event)
+
+      if (normalized.type === "permission.asked") {
+        permissionPending = true
+        const pid = normalized.id
+        const name = normalized.tool
+        if (typeof pid === "string" && typeof name === "string") {
+          permissionNameById.set(pid, name)
+        }
+      } else if (normalized.type === "permission.replied") {
+        permissionPending = false
+        permissionMuteUntil = now() + permissionMuteTailMs
+        // The reply has no name of its own — recover it from the ask.
+        if (typeof normalized.tool !== "string") {
+          const rid = normalized.requestID
+          const name = typeof rid === "string" ? permissionNameById.get(rid) : undefined
+          if (name) normalized.tool = name
+          if (typeof rid === "string") permissionNameById.delete(rid)
+        }
+      } else if (normalized.type === "session.idle" && permissionPending) {
+        // Paused for a pending permission: the permission template already
+        // spoke. Skip the idle narration AND the turn-state reset — the turn
+        // resumes once the user replies, so the narrator still needs context.
+        return
+      }
 
       if (normalized.type === "todo.updated") {
         const todos = normalized.todos as TodoSnapshot[] | undefined

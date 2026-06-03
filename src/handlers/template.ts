@@ -56,7 +56,7 @@ const templates: Record<string, Renderer> = {
           ? "denied"
           : raw
     const tool = asString(e.tool) ?? "the operation"
-    if (verb === "granted") return `I got approval to use ${tool}.`
+    if (verb === "granted") return `Thank you for giving me permission for ${tool}.`
     if (verb === "denied") return `I was denied permission to use ${tool}.`
     if (verb === "responded") return `I got a response for ${tool}.`
     return `I got a permission response for ${tool}: ${verb}.`

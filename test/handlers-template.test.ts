@@ -50,7 +50,7 @@ describe("renderTemplate", () => {
   it("formats permission.replied with normalized decisions", () => {
     expect(
       renderTemplate({ type: "permission.replied", tool: "write", decision: "allow" }),
-    ).toBe("I got approval to use write.")
+    ).toBe("Thank you for giving me permission for write.")
     expect(
       renderTemplate({ type: "permission.replied", tool: "bash", decision: "deny" }),
     ).toBe("I was denied permission to use bash.")
@@ -69,7 +69,7 @@ describe("renderTemplate", () => {
           properties: { sessionID: "s", requestID: "r", reply: "once" },
         }),
       ),
-    ).toBe("I got approval to use the operation.")
+    ).toBe("Thank you for giving me permission for the operation.")
     expect(
       renderTemplate(
         normalizeEvent({
@@ -77,7 +77,7 @@ describe("renderTemplate", () => {
           properties: { sessionID: "s", requestID: "r", reply: "always" },
         }),
       ),
-    ).toBe("I got approval to use the operation.")
+    ).toBe("Thank you for giving me permission for the operation.")
     expect(
       renderTemplate(
         normalizeEvent({

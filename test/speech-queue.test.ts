@@ -64,6 +64,27 @@ describe("SpeechQueue", () => {
     expect(log[log.length - 1]).toBe("done:urgent")
   })
 
+  it("an urgent item clears the pending chatty backlog and cuts a chatty mid-speech", async () => {
+    const log: CallLog = []
+    const q = new SpeechQueue({ speak: makeSpeaker(log, 50), staleMs: 8000, now: () => Date.now() })
+    // A chatty item is speaking; another chatty + a normal are queued behind it.
+    q.push(req({ id: "chatty1", priority: Priority.CHATTY }))
+    await new Promise((r) => setTimeout(r, 5)) // let chatty1 start
+    q.push(req({ id: "chatty2", priority: Priority.CHATTY }))
+    q.push(req({ id: "normal", priority: Priority.NORMAL }))
+    // Urgent arrives (e.g. permission.asked): it should speak alone w.r.t.
+    // chatter — chatty1 aborted, chatty2 dropped — but the normal item survives.
+    q.push(req({ id: "urgent", priority: Priority.URGENT }))
+    await q.idle()
+
+    expect(log).toContain("abort:chatty1")
+    expect(log).not.toContain("start:chatty2")
+    expect(log).toContain("start:urgent")
+    // Non-chatty queued work is preserved.
+    expect(log).toContain("start:normal")
+    expect(log).toContain("done:normal")
+  })
+
   it("dedupes queued requests by dedupKey, keeping the newest text", async () => {
     const speakLog: string[] = []
     const speak = async (r: SpeechRequest) => {

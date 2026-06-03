@@ -323,6 +323,118 @@ describe("dispatcher", () => {
     expect(types).not.toContain("message.reasoning.delta")
   })
 
+  it("suppresses session.idle narration while a permission is pending", async () => {
+    const handle = vi.fn().mockResolvedValue(null)
+    const push = vi.fn()
+    const d = createDispatcher({ handler: { handle }, queue: { push } } as any)
+
+    await d.onEvent({
+      type: "message.part.updated",
+      properties: { part: { id: "p1", type: "text", text: "I want to read the project directory" } },
+    })
+    await d.onEvent({ type: "permission.asked", properties: { permission: "read" } })
+    handle.mockClear()
+
+    // The agent pauses for the user — opencode fires session.idle. We must not
+    // narrate it (the permission.asked template already spoke), and we must not
+    // wipe turn state, because the turn continues after the user replies.
+    await d.onEvent({ type: "session.idle" })
+
+    const idleCalls = handle.mock.calls.filter(([e]) => e.type === "session.idle")
+    expect(idleCalls).toHaveLength(0)
+    expect(d.getContext().assistantText).toContain("read the project directory")
+  })
+
+  it("narrates session.idle normally once the permission has been replied to", async () => {
+    const handle = vi.fn().mockResolvedValue(null)
+    const push = vi.fn()
+    const d = createDispatcher({ handler: { handle }, queue: { push } } as any)
+
+    await d.onEvent({ type: "permission.asked", properties: { permission: "read" } })
+    await d.onEvent({ type: "permission.replied", properties: { permission: "read", decision: "allow" } })
+    handle.mockClear()
+
+    await d.onEvent({ type: "session.idle" })
+
+    const idleCalls = handle.mock.calls.filter(([e]) => e.type === "session.idle")
+    expect(idleCalls).toHaveLength(1)
+    // Real end-of-turn idle still resets per-turn state.
+    expect(d.getContext().assistantText).toBe("")
+  })
+
+  it("mutes reasoning/text narration during the permission window and resumes after the tail", async () => {
+    let clock = 1000
+    const handle = vi.fn().mockResolvedValue(null)
+    const push = vi.fn()
+    const d = createDispatcher({
+      handler: { handle },
+      queue: { push },
+      now: () => clock,
+      permissionMuteTailMs: 2000,
+    } as any)
+
+    const reasoning = (id: string, text: string) =>
+      d.onEvent({ type: "message.part.updated", properties: { part: { id, type: "reasoning", text } } })
+    const reasoningTypes = () =>
+      handle.mock.calls
+        .map(([e]) => e)
+        .filter((e) => e.type === "message.reasoning.delta")
+        .map((e) => e.text)
+
+    // Permission asked → reasoning that streams during the pause is muted.
+    await d.onEvent({ type: "permission.asked", properties: { id: "per_1", permission: "external_directory" } })
+    await reasoning("r1", "Let me read that path.")
+    expect(reasoningTypes()).toHaveLength(0)
+
+    // Replied → still within the ~2s tail, reasoning stays muted.
+    await d.onEvent({ type: "permission.replied", properties: { requestID: "per_1", reply: "always" } })
+    clock = 2500 // 1500ms after the reply (reply happened at clock=1000)
+    await reasoning("r2", "Let me try with the full path.")
+    expect(reasoningTypes()).toHaveLength(0)
+
+    // Past the tail → reasoning narration resumes.
+    clock = 4000
+    await reasoning("r3", "Now I'll write the code.")
+    expect(reasoningTypes()).toEqual(["Now I'll write the code."])
+  })
+
+  it("recovers the permission name on reply from the matching ask", async () => {
+    // Real opencode payloads: `permission.asked` carries the name in
+    // `properties.permission` and an `id`; `permission.replied` carries only
+    // `requestID` + `reply`, no name. We remember id -> name on the ask and
+    // resolve it on the reply so the template can speak the real name.
+    const handle = vi.fn().mockResolvedValue(null)
+    const push = vi.fn()
+    const d = createDispatcher({ handler: { handle }, queue: { push } } as any)
+
+    await d.onEvent({
+      type: "permission.asked",
+      properties: { id: "per_1", permission: "external_directory", patterns: [] },
+    })
+    await d.onEvent({
+      type: "permission.replied",
+      properties: { requestID: "per_1", reply: "always" },
+    })
+
+    const replied = handle.mock.calls.map(([e]) => e).find((e) => e.type === "permission.replied")
+    expect(replied.tool).toBe("external_directory")
+  })
+
+  it("clears a pending permission on session.created", async () => {
+    const handle = vi.fn().mockResolvedValue(null)
+    const push = vi.fn()
+    const d = createDispatcher({ handler: { handle }, queue: { push } } as any)
+
+    await d.onEvent({ type: "permission.asked", properties: { permission: "read" } })
+    await d.onEvent({ type: "session.created" })
+    handle.mockClear()
+
+    await d.onEvent({ type: "session.idle" })
+
+    const idleCalls = handle.mock.calls.filter(([e]) => e.type === "session.idle")
+    expect(idleCalls).toHaveLength(1)
+  })
+
   it("bridges v2 session.next.tool.* events to tool.execute.* with callID-resolved tool name", async () => {
     const handle = vi.fn().mockResolvedValue(null)
     const push = vi.fn()
