@@ -19,7 +19,7 @@ describe("renderTemplate", () => {
 
   it("formats permission.asked", () => {
     expect(renderTemplate({ type: "permission.asked", tool: "write" })).toBe(
-      "I need your approval before I use write.",
+      "Can you grant me the permission for write?",
     )
   })
 
@@ -37,14 +37,14 @@ describe("renderTemplate", () => {
       },
     }
     expect(renderTemplate(normalizeEvent(raw))).toBe(
-      "I need your approval before I use bash.",
+      "Can you grant me the permission for bash?",
     )
   })
 
   it("falls back when tool is a non-string object and no friendly name is available", () => {
     expect(
       renderTemplate({ type: "permission.asked", tool: { messageID: "m", callID: "c" } }),
-    ).toBe("I need your approval before I use an operation.")
+    ).toBe("Can you grant me the permission for an operation?")
   })
 
   it("formats permission.replied with normalized decisions", () => {
@@ -107,7 +107,7 @@ describe("renderTemplate", () => {
           },
         }),
       ),
-    ).toBe("I need your approval before I use bash.")
+    ).toBe("Can you grant me the permission for bash?")
   })
 
   it("aliases v2 session.next.tool.called to tool.execute.before", () => {

@@ -45,7 +45,7 @@ const templates: Record<string, Renderer> = {
     "I compacted the session, so older context is summarized and I have more room to continue.",
   "session.created":      () => "I'm starting a new session and getting ready to work.",
   "permission.asked":     (e) =>
-    `I need your approval before I use ${asString(e.tool) ?? "an operation"}.`,
+    `Can you grant me the permission for ${asString(e.tool) ?? "an operation"}?`,
   "permission.replied":   (e) => {
     const raw = String(e.decision ?? "responded").toLowerCase()
     const verb =
