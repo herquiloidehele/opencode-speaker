@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Initial public release.
-- Speaks opencode agent activity out loud through pluggable text-to-speech backends.
+- Speaks opencode agent activity out loud through pluggable text-to-speech provider.
 - TTS providers: OpenAI (default) and ElevenLabs.
 - LLM narrator providers: OpenAI and Anthropic, via the Vercel AI SDK (v6).
 - Event catalog with per-event modes (`template`, `narrate`, `verbatim`) and
