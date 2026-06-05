@@ -243,6 +243,10 @@ issue.
 
 **Plugin disabled with a toast on startup:** the toast carries a short summary (invalid config, missing API key, TTS init failure). The full structured detail is in opencode's log file — `opencode-speaker` errors are logged at `error` / `warn` level.
 
+**TTS quota exceeded toast:** if speech synthesis fails because the configured provider API key has no remaining quota, the plugin shows one error toast and disables speech for the current opencode session to avoid repeated failed API calls. Check your provider plan and billing details, then restart opencode.
+
+**Startup TTS failure toast:** if the startup greeting fails because the provider rejects the request, the API key is invalid, the network fails, or audio playback fails, the plugin shows one error toast and disables speech for the current opencode session. Check the opencode log for the full provider error.
+
 **`Unrecognized key: voice` schema error:** you put options at the top level. Use the tuple form: `"plugin": [["opencode-speaker", { ... }]]`, not `"voice": { ... }`.
 
 ---

@@ -1,8 +1,9 @@
 import "source-map-support/register.js"
+import { randomUUID } from "node:crypto"
 import { parseConfig, PLUGIN_NAME, type VoiceConfig } from "./config.js"
 import { createLogger, type Logger } from "./log.js"
 import { SpeechQueue } from "./queue/speech-queue.js"
-import { type SpeechRequest } from "./queue/types.js"
+import { Priority, type SpeechRequest } from "./queue/types.js"
 import { createAiSdkProvider } from "./tts/ai-sdk.js"
 import { createPlayer, type Player } from "./audio/player.js"
 import { defaultRunner } from "./audio/runner.js"
@@ -17,6 +18,7 @@ import { createDispatcher } from "./dispatcher.js"
 import { createCommands } from "./commands"
 import { createNotifier } from "./notify.js"
 import { checkCredentials } from "./ai-sdk/credentials.js"
+import { isQuotaError } from "./errors/quota.js"
 
 // IMPORTANT: do not re-export anything that opencode's plugin loader might
 // mistake for a server plugin. The loader uses the v1 default-export contract
@@ -37,6 +39,7 @@ type PluginCtx = {
 
 type PluginOptions = Record<string, unknown> | undefined
 type Notifier = ReturnType<typeof createNotifier>
+const STARTUP_GREETING_DEDUP_KEY = "startup.greeting"
 
 function formatSchemaErrors(errors: { path: string; message: string }[]): string {
   const parts = errors.map((e) => (e.path ? `${e.path}: ${e.message}` : e.message))
@@ -140,17 +143,34 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
   }
 
   // 5. Wire queue.
+  let speechFailureToastShown = false
   const queue = new SpeechQueue({
     speak,
     staleMs: config.queue.staleMs,
     now: () => Date.now(),
     logger: queueLog,
     onError: (err, req) => {
-      void queueLog.warn("speak failed", {
+      void queueLog.warn("speak failed!", {
         error: err,
         operation: "speaking queued request",
         input: { textPreview: req.text.slice(0, 80), priority: req.priority },
       })
+
+      const summary = isQuotaError(err)
+        ? "TTS quota exceeded; speech disabled for this session"
+        : req.dedupKey === STARTUP_GREETING_DEDUP_KEY
+          ? "TTS failed during startup; speech disabled for this session"
+          : null
+
+      if (!speechFailureToastShown && summary) {
+        speechFailureToastShown = true
+        notifier.fatal(summary, {
+          error: err,
+          operation: "handling speech failure",
+          input: { provider: resolvedSpeech.provider },
+        })
+        queue.mute()
+      }
     },
   })
 
@@ -187,8 +207,15 @@ async function initPlugin(ctx: PluginCtx, options?: PluginOptions) {
     input: { provider: resolvedSpeech.provider, voice: config.tts.voice },
   })
 
-  if (config.greeting.trim().length > 0 && !config.startMuted) {
-    commands.say(config.greeting)
+  const greeting = config.greeting.trim()
+  if (greeting.length > 0 && !config.startMuted) {
+    queue.push({
+      id: randomUUID(),
+      priority: Priority.NORMAL,
+      text: greeting,
+      dedupKey: STARTUP_GREETING_DEDUP_KEY,
+      enqueuedAt: Date.now(),
+    })
   }
 
   return {
