@@ -80,6 +80,7 @@
     }
   },
   "devDependencies": {
+    "@changesets/cli": "^2.31.0",
     "@types/node": "^20.0.0",
     "@types/source-map-support": "^0.5.10",
     "msw": "^2.14.6",
