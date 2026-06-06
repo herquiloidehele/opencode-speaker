@@ -41,7 +41,7 @@ describe("narrator", () => {
     // message and the per-event context, so both are assertable here.
     expect(capturedPrompt).toContain("did stuff")
     expect(capturedPrompt).toContain("First person")
-    expect(capturedPrompt).toContain("read aloud")
+    expect(capturedPrompt).toContain("say it aloud")
     expect(capturedPrompt).not.toContain("Do not refer to the agent")
   })
 
@@ -80,7 +80,7 @@ describe("narrator", () => {
 
     await n.summarize({ type: "todo.completed.all" }, ctx("finished the list"))
 
-    expect(capturedPrompt).toContain("The user has finished all todos.")
+    expect(capturedPrompt).toContain("I just finished everything on my todo list.")
   })
 
   it("returns null when timeout elapses", async () => {
