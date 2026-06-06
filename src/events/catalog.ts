@@ -34,7 +34,7 @@ export const EVENT_SPECS = {
   "message.reasoning.delta": { mode: "verbatim", priority: "chatty", queuePriority: Priority.CHATTY, defaultEnabled: enabled(true, false), synthetic: true },
   "message.text.delta": { mode: "verbatim", priority: "chatty", queuePriority: Priority.CHATTY, defaultEnabled: enabled(false, false), synthetic: true },
   "todo.completed.item": { mode: "template", priority: "chatty", queuePriority: Priority.CHATTY, defaultEnabled: enabled(true, false), synthetic: true },
-  "todo.completed.all": { mode: "narrate", queuePriority: Priority.NORMAL, defaultEnabled: enabled(true, true), synthetic: true, narrationOccasion: "The user has finished all todos." },
+  "todo.completed.all": { mode: "narrate", queuePriority: Priority.NORMAL, defaultEnabled: enabled(true, true), synthetic: true, narrationOccasion: "I just finished everything on my todo list." },
 } as const satisfies Record<string, EventSpec>
 
 export type EventType = keyof typeof EVENT_SPECS
