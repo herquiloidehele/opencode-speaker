@@ -1,6 +1,6 @@
 {
   "name": "opencode-speaker",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Speaker plugin for opencode — speaks agent events through pluggable TTS providers.",
   "keywords": [
     "opencode",
