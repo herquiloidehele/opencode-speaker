@@ -43,7 +43,7 @@ const templates: Record<string, Renderer> = {
     `I hit a session error: ${truncate(String(e.message ?? "unknown"), 200)}. Check the log for details.`,
   "session.compacted":    ()  =>
     "I compacted the session, so older context is summarized and I have more room to continue.",
-  "session.created":      () => "I'm starting a new session and getting ready to work.",
+  "session.created":      () => "I've just started a new session and I'm getting ready to work.",
   "permission.asked":     (e) =>
     `Can you grant me the permission for ${asString(e.tool) ?? "an operation"}?`,
   "permission.replied":   (e) => {
@@ -65,7 +65,7 @@ const templates: Record<string, Renderer> = {
   "tool.execute.after":   (e) => `I finished running ${asString(e.tool) ?? "tool"}.`,
   "file.edited":          (e) => {
     const raw = String(e.file ?? "")
-    return raw ? `I edited ${basename(raw)}.` : "I edited a file."
+    return raw ? `Updated ${basename(raw)}.` : "Updated a file."
   },
   "command.executed":     (e) => {
     const name = String(e.command ?? "").trim()

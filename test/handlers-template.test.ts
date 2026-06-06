@@ -173,10 +173,10 @@ describe("renderTemplate", () => {
 
   it("formats session.created", () => {
     expect(renderTemplate({ type: "session.created" })).toBe(
-      "I'm starting a new session and getting ready to work.",
+      "I've just started a new session and I'm getting ready to work.",
     )
     expect(renderTemplate({ type: "session.created", title: "Refactor auth" })).toBe(
-      "I'm starting a new session and getting ready to work.",
+      "I've just started a new session and I'm getting ready to work.",
     )
   })
 
@@ -188,11 +188,11 @@ describe("renderTemplate", () => {
   it("formats file.edited using just the basename", () => {
     expect(
       renderTemplate({ type: "file.edited", file: "/repo/src/index.ts" }),
-    ).toBe("I edited index.ts.")
+    ).toBe("Updated index.ts.")
     expect(renderTemplate({ type: "file.edited", file: "/tmp/example.ts" })).toBe(
-      "I edited example.ts.",
+      "Updated example.ts.",
     )
-    expect(renderTemplate({ type: "file.edited" })).toBe("I edited a file.")
+    expect(renderTemplate({ type: "file.edited" })).toBe("Updated a file.")
   })
 
   it("formats command.executed", () => {
